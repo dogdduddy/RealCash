@@ -19,3 +19,9 @@
 - 처리: chroma-key(만원 magenta, 나머지 green; despill 0.2~0.4%, 잔여 배경 0%) → fit 1024 x 실물 비율 높이(470/452/490/512) --margin 0.0 → assets/img/drawable/bill_w{10000,50000,5000,1000}.png
 - 검수: 인물·실루엣 없음, 실물 색·레이아웃·홀로그램·점자·견본 일련번호 재현, 어두운 배경 시트 가장자리 깨끗, 40/64px 축소 시 색+숫자로 권종 구분. 전부 PASS draft
 - 상태: draft · aiGenerated: true · source: gpt
+
+## coin.c500.a / coin.c100.a — 실물풍 주화 (2026-11-04)
+- 의뢰서: assets/jobs/done/05-coin.c500.a, 06-coin.c100.a. 각 1회 생성(81s/76s). 원본 1254x1254 → assets/raw/<id>-1.png
+- 100원은 앞면 이순신 초상을 피하기 위해 숫자 면(뒷면)만 의뢰. 500원은 앞면(학).
+- 처리: chroma-key --key magenta(despill 0.3%, 잔여 0%) → fit 512x512 --margin 0.0 → assets/img/drawable/coin_c500.png, coin_c100.png
+- 검수: 인물 없음, 백동 재질·톱니 테두리·글자 실물 충실, 정원. PASS draft · aiGenerated: true · source: gpt

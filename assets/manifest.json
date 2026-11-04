@@ -45,6 +45,24 @@
       "source": "gpt",
       "aiGenerated": true,
       "role": "천원권 앞면 (실물풍, 초상→계상정거도)"
+    },
+    "coin.c500.a": {
+      "path": "assets/img/drawable/coin_c500.png",
+      "resource": "coin_c500",
+      "size": "512x512",
+      "status": "draft",
+      "source": "gpt",
+      "aiGenerated": true,
+      "role": "500원 주화 앞면 (학, 실물풍)"
+    },
+    "coin.c100.a": {
+      "path": "assets/img/drawable/coin_c100.png",
+      "resource": "coin_c100",
+      "size": "512x512",
+      "status": "draft",
+      "source": "gpt",
+      "aiGenerated": true,
+      "role": "100원 주화 숫자 면 (앞면 초상 회피, 실물풍)"
     }
   }
 }
