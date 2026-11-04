@@ -63,6 +63,24 @@
       "source": "gpt",
       "aiGenerated": true,
       "role": "100원 주화 숫자 면 (앞면 초상 회피, 실물풍)"
+    },
+    "coin.c50.a": {
+      "path": "assets/img/drawable/coin_c50.png",
+      "resource": "coin_c50",
+      "size": "512x512",
+      "status": "draft",
+      "source": "gpt",
+      "aiGenerated": true,
+      "role": "50원 주화 앞면 (벼 이삭, 실물풍)"
+    },
+    "coin.c10.a": {
+      "path": "assets/img/drawable/coin_c10.png",
+      "resource": "coin_c10",
+      "size": "512x512",
+      "status": "draft",
+      "source": "gpt",
+      "aiGenerated": true,
+      "role": "10원 주화 앞면 (다보탑, 구릿빛 신형, 실물풍)"
     }
   }
 }

@@ -25,3 +25,8 @@
 - 100원은 앞면 이순신 초상을 피하기 위해 숫자 면(뒷면)만 의뢰. 500원은 앞면(학).
 - 처리: chroma-key --key magenta(despill 0.3%, 잔여 0%) → fit 512x512 --margin 0.0 → assets/img/drawable/coin_c500.png, coin_c100.png
 - 검수: 인물 없음, 백동 재질·톱니 테두리·글자 실물 충실, 정원. PASS draft · aiGenerated: true · source: gpt
+
+## coin.c50.a / coin.c10.a — 실물풍 주화 (2026-11-04)
+- 의뢰서: assets/jobs/done/07-coin.c50.a, 08-coin.c10.a. 각 1회 생성(c50 은 1236s — 한도 대기 포함, c10 97s). 원본 1254x1254 → assets/raw/<id>-1.png
+- 처리: chroma-key --key magenta(despill 0.26%, 잔여 0%) → fit 512x512 → assets/img/drawable/coin_c50.png, coin_c10.png
+- 검수: 인물 없음, 벼 이삭/다보탑 도안·재질(양백/구리) 충실, 정원. PASS draft · aiGenerated: true · source: gpt

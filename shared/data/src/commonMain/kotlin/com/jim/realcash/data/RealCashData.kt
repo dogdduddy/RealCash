@@ -22,7 +22,8 @@ import kotlinx.coroutines.IO
 class RealCashData(
     driver: SqlDriver,
     clock: Clock = Clock.System,
-    ids: IdGenerator = UuidIdGenerator,
+    /** Identifier source shared by the repositories; the UI uses it for manual entries. */
+    val ids: IdGenerator = UuidIdGenerator,
     ioContext: CoroutineContext = Dispatchers.IO,
 ) {
     /** The generated database API. */
