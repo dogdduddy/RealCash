@@ -1,0 +1,38 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+local.properties
+
+# Kotlin
+.kotlin/
+*.class
+*.log
+
+# IntelliJ / Android Studio / Fleet
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+.fleet/
+
+# VS Code
+.vscode/
+
+# Xcode
+DerivedData/
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.moved-aside
+build-iphoneos/
+build-iphonesimulator/
+
+# CocoaPods / SwiftPM
+Pods/
+.build/
+.swiftpm/
+
+# macOS
+.DS_Store
