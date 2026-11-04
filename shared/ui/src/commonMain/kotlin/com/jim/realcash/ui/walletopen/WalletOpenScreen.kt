@@ -43,8 +43,10 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.jim.realcash.domain.model.CashUnit
 import com.jim.realcash.domain.model.CashUnitId
 import com.jim.realcash.domain.model.Denomination
@@ -152,10 +154,18 @@ fun WalletOpenContent(
                 Box(Modifier.offset((group.left + i * group.fanStep).dp, group.top.dp).size(group.billWidth.dp, group.billHeight.dp), contentAlignment = Alignment.Center) {
                     BillFace(group.denomination,
                         Modifier.requiredSize(group.billHeight.dp, group.billWidth.dp)
-                            .graphicsLayer { rotationZ = 90f }
+                            .graphicsLayer { rotationZ = -90f }
                             .drawWithContent { drawContent(); drawRect(Color.Black.copy(alpha = ((group.visibleCount - 1 - i) * 0.035f).coerceAtMost(0.28f))) }, painter)
                 }
             }
+        }
+        // Repeat the face value in the narrow top margin: the next fan can cover
+        // part of the artwork's larger corner number even above the pocket lip.
+        groups.forEach { group ->
+            Text(group.denomination.won.toString(),
+                color = Color(0xFF302A22), fontSize = 9.sp, lineHeight = 10.sp,
+                fontWeight = FontWeight.Bold, maxLines = 1,
+                modifier = Modifier.offset((group.frontLeft + 6f).dp, group.top.dp))
         }
         Image(walletPainter, null,
             Modifier.rect(wallet).drawWithContent { clipRect(top = size.height * 0.405f) { this@drawWithContent.drawContent() } },
