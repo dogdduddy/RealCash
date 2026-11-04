@@ -1,0 +1,19 @@
+2d5717318bc587664454fba6046b51ffb8f5d18d [codex-ui] ui.wallet-open-layout: 열린 지갑 화면 — 접시·지갑·지폐 팬·동전 흩뿌리기 정적 배치
+
+ shared/ui/screenshots/t-wallet-open-layout.png     | Bin 0 -> 1374823 bytes
+ shared/ui/screenshots/u-wallet-open-tray-dark.png  | Bin 0 -> 1354016 bytes
+ shared/ui/screenshots/u-wallet-open-tray.png       | Bin 0 -> 1397324 bytes
+ .../ui/screenshots/v-wallet-open-payment-dark.png  | Bin 0 -> 760486 bytes
+ shared/ui/screenshots/v-wallet-open-payment.png    | Bin 0 -> 788365 bytes
+ .../kotlin/com/jim/realcash/ui/AppState.kt         |  25 ++-
+ .../kotlin/com/jim/realcash/ui/RealCashApp.kt      |  29 +--
+ .../com/jim/realcash/ui/walletopen/CoinScatter.kt  |  36 +++
+ .../jim/realcash/ui/walletopen/WalletOpenLayout.kt |  65 ++++++
+ .../jim/realcash/ui/walletopen/WalletOpenModel.kt  |  78 +++++++
+ .../jim/realcash/ui/walletopen/WalletOpenScreen.kt | 244 +++++++++++++++++++++
+ .../jim/realcash/ui/screenshot/ScreenshotTest.kt   |  30 +++
+ .../jim/realcash/ui/walletopen/CoinScatterTest.kt  |  43 ++++
+ .../realcash/ui/walletopen/WalletOpenLayoutTest.kt |  49 +++++
+ .../realcash/ui/walletopen/WalletOpenModelTest.kt  | 121 ++++++++++
+ .../ui/walletopen/WalletOpenNavigationTest.kt      |  73 ++++++
+ 16 files changed, 771 insertions(+), 22 deletions(-)
