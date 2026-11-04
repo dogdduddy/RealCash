@@ -61,6 +61,16 @@ object Strings {
     fun allowanceReceived(amount: String): String = "${amount}을 지갑에 넣었어요"
     fun periodStartNote(label: String): String = "$label 시작 기간의 용돈으로 기록돼요"
 
+    // Manual payment
+    const val MANUAL_TITLE = "직접 기록"
+    const val MANUAL_AMOUNT = "결제 금액 (원)"
+    const val MANUAL_MERCHANT = "가맹점 (선택)"
+    const val MANUAL_SETTLE = "정산하기"
+    const val MANUAL_SUBMITTING = "정산 중…"
+    const val MANUAL_WALLET_HINT = "지갑에서 자동으로 꺼냅니다(큰 권종부터)"
+    const val MANUAL_RETRY_HINT = "결제는 기록됐어요. 정산하기를 눌러 다시 시도해 주세요."
+    fun manualHandHint(amount: String): String = "손에 든 $amount 로 정산됩니다"
+
     // Confirm payments
     const val CONFIRM_TITLE = "확인 필요한 결제"
     const val CONFIRM_EMPTY = "확인할 결제가 없어요"

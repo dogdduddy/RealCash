@@ -298,6 +298,30 @@ class ScreenshotTest {
         render("q-wallet-all-coins-dark", dark = true) { RealCashRoot(app) }
     }
 
+    @Test
+    fun p_manualPaymentSheet() = runBlocking {
+        val data = newData().apply { seedAllowance(); seedHand(W10000) }
+        val app = newAppState(data)
+        app.openManualSheet()
+        app.manualPayment.onAmountChange("6500")
+        render("p-manual-payment-sheet") { RealCashRoot(app) }
+    }
+
+    @Test
+    fun q_manualPaymentResult() = runBlocking {
+        val data = newData().apply { seedAllowance(); seedHand(W10000) }
+        val app = newAppState(data)
+        app.openManualSheet()
+        app.manualPayment.onAmountChange("6500")
+        app.manualPayment.onMerchantChange("동네 카페")
+        app.manualPayment.submit()
+        val result = checkNotNull(app.manualPayment.draft.value.result)
+        assertEquals(Won(10_000), result.paid)
+        assertEquals(Won(3_500), result.change)
+        assertTrue(com.jim.realcash.domain.model.SettlementFlag.MANUAL in result.settlement.flags)
+        render("q-manual-payment-result") { RealCashRoot(app) }
+    }
+
     private fun render(
         name: String,
         dark: Boolean = false,

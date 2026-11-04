@@ -74,12 +74,14 @@ fun WalletHomeScreen(
     onExchange: () -> Unit = {},
     onOpenSimulator: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
+    onManualPayment: () -> Unit = {},
 ) {
     val ui by model.ui.collectAsState()
     WalletHomeContent(
         ui = ui,
         onReceiveAllowance = onReceiveAllowance,
         onOpenPending = onOpenPending,
+        onManualPayment = onManualPayment,
         onTakeOut = onTakeOut,
         onTakeMore = onTakeMore,
         onExchange = onExchange,
@@ -103,6 +105,7 @@ fun WalletHomeContent(
     onTakeOut: () -> Unit = {},
     onTakeMore: () -> Unit = {},
     onExchange: () -> Unit = {},
+    onManualPayment: () -> Unit = {},
 ) {
     Box(modifier.fillMaxSize()) {
         Column(
@@ -120,9 +123,9 @@ fun WalletHomeContent(
             }
             if (ui.pendingCount > 0) PendingBanner(ui.pendingCount, onOpenPending)
             if (ui.hand != null) {
-                HandCard(ui.hand, onReturn = onReturnHand, onTakeMore = onTakeMore)
+                HandCard(ui.hand, onReturn = onReturnHand, onTakeMore = onTakeMore, onManualPayment = onManualPayment)
             } else {
-                NoHandCard(canTakeOut = ui.loaded && !ui.walletEmpty, onTakeOut = onTakeOut)
+                NoHandCard(canTakeOut = ui.loaded && !ui.walletEmpty, onTakeOut = onTakeOut, onManualPayment = onManualPayment)
             }
             WalletSectionHeader(ui, onExchange)
             when {
@@ -221,7 +224,7 @@ private fun PendingBanner(count: Int, onClick: () -> Unit) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun HandCard(hand: HandUi, onReturn: () -> Unit, onTakeMore: () -> Unit) {
+private fun HandCard(hand: HandUi, onReturn: () -> Unit, onTakeMore: () -> Unit, onManualPayment: () -> Unit) {
     val art = LocalMoneyArt.current
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
@@ -267,12 +270,13 @@ private fun HandCard(hand: HandUi, onReturn: () -> Unit, onTakeMore: () -> Unit)
                 }
                 Button(onClick = onTakeMore, contentPadding = padding, modifier = Modifier.weight(1f)) { Text(Strings.TAKE_MORE, maxLines = 1) }
             }
+            TextButton(onClick = onManualPayment, modifier = Modifier.fillMaxWidth()) { Text(Strings.MANUAL_TITLE) }
         }
     }
 }
 
 @Composable
-private fun NoHandCard(canTakeOut: Boolean, onTakeOut: () -> Unit) {
+private fun NoHandCard(canTakeOut: Boolean, onTakeOut: () -> Unit, onManualPayment: () -> Unit) {
     Surface(
         color = MaterialTheme.colorScheme.surfaceContainer,
         contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -289,7 +293,10 @@ private fun NoHandCard(canTakeOut: Boolean, onTakeOut: () -> Unit) {
                 Text(Strings.NO_HAND_HINT, style = MaterialTheme.typography.bodySmall)
             }
             Spacer(Modifier.width(8.dp))
-            Button(onClick = onTakeOut, enabled = canTakeOut) { Text(Strings.TAKE_OUT) }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Button(onClick = onTakeOut, enabled = canTakeOut) { Text(Strings.TAKE_OUT) }
+                TextButton(onClick = onManualPayment) { Text(Strings.MANUAL_TITLE) }
+            }
         }
     }
 }

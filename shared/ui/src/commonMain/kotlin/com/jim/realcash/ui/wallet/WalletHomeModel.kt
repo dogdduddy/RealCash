@@ -4,6 +4,8 @@ import com.jim.realcash.data.AppSettings
 import com.jim.realcash.data.PaymentLogEntry
 import com.jim.realcash.domain.calc.BudgetPeriods
 import com.jim.realcash.domain.ledger.ReturnReason
+import com.jim.realcash.domain.ledger.LedgerEvent
+import com.jim.realcash.domain.ledger.PaymentDetected
 import com.jim.realcash.domain.ledger.WalletState
 import com.jim.realcash.domain.model.BudgetPeriodPolicy
 import com.jim.realcash.domain.model.CashUnit
@@ -60,9 +62,9 @@ data class HandUi(
 data class SettlementUi(
     /** Settled payment. */
     val paymentId: PaymentId,
-    /** Merchant from the payment log, if known. */
+    /** Merchant from the detection event or payment log, if known. */
     val merchant: String?,
-    /** Payment amount from the payment log, if known. */
+    /** Payment amount from the detection event or payment log, if known. */
     val amount: Won?,
     /** Change that went into the wallet. */
     val change: Won,
@@ -111,6 +113,7 @@ data class WalletHomeUi(
             timeZone: TimeZone,
             dismissed: Set<PaymentId>,
             loaded: Boolean,
+            history: List<LedgerEvent> = emptyList(),
         ): WalletHomeUi {
             val today = now.toLocalDateTime(timeZone).date
             val policy = settings.budgetPeriodPolicy
@@ -129,7 +132,8 @@ data class WalletHomeUi(
             }
             val last = state.settlements.lastOrNull()?.takeIf { it.paymentId !in dismissed }?.let { s ->
                 val entry = log.firstOrNull { it.paymentId == s.paymentId }
-                SettlementUi(s.paymentId, entry?.merchant, entry?.amount, s.changeUnits.total(), s.flags)
+                val payment = history.filterIsInstance<PaymentDetected>().lastOrNull { it.payment.id == s.paymentId }?.payment
+                SettlementUi(s.paymentId, payment?.merchant ?: entry?.merchant, payment?.amount ?: entry?.amount, s.changeUnits.total(), s.flags)
             }
             return WalletHomeUi(
                 loaded = loaded,
@@ -173,11 +177,11 @@ class WalletHomeModel(
     /** The screen state. */
     val ui: StateFlow<WalletHomeUi> = combine(
         combine(data.wallet.state, data.settings.settings, loaded, ::Triple),
-        data.paymentLog.observeRecent(LOG_LOOKBACK).onStart { emit(emptyList()) },
+        combine(data.paymentLog.observeRecent(LOG_LOOKBACK).onStart { emit(emptyList()) }, data.wallet.history) { log, history -> log to history },
         ticker,
         dismissed,
-    ) { (state, settings, isLoaded), log, now, gone ->
-        WalletHomeUi.from(state, settings, log, now, env.timeZone, gone, isLoaded)
+    ) { (state, settings, isLoaded), (log, history), now, gone ->
+        WalletHomeUi.from(state, settings, log, now, env.timeZone, gone, isLoaded, history)
     }.stateIn(
         scope,
         SharingStarted.Eagerly,
@@ -189,6 +193,7 @@ class WalletHomeModel(
             env.timeZone,
             emptySet(),
             loaded = false,
+            history = data.wallet.history.value,
         ),
     )
 

@@ -102,6 +102,7 @@ class FormattingTest {
     fun sourceAndConfidenceLabels() {
         assertEquals("삼성월렛", sourceAppLabel(DefaultRules.SAMSUNG_WALLET))
         assertEquals("토스", sourceAppLabel(DefaultRules.TOSS))
+        assertEquals("직접 기록", sourceAppLabel("manual"))
         assertEquals("com.example.bank", sourceAppLabel("com.example.bank"))
         assertEquals("85%", formatConfidence(0.85f))
         assertEquals("100%", formatConfidence(1f))
