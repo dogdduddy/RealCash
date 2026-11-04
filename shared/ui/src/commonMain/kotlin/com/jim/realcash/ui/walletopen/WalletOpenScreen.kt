@@ -116,7 +116,10 @@ fun WalletOpenContent(
                 WalletRect(group.left + i * group.fanStep, group.top, group.billWidth, group.billHeight) to animation
             }
         }
-        val currentHits by rememberUpdatedState(hits)
+        val currentEnabled = rememberUpdatedState(!submitting)
+        val currentHits = rememberUpdatedState(hits)
+        val currentPocket = rememberUpdatedState(layout.pocket)
+        val currentSway = rememberUpdatedState(sway)
         val release by rememberUpdatedState<(Boolean) -> Unit>({ cancelled ->
             val pick = physics.picked
             if (pick != null && !physics.settling) {
@@ -146,7 +149,7 @@ fun WalletOpenContent(
             }
         })
         // Full-screen gesture surface has no scrolling. Controls remain ordinary buttons above it.
-        Box(Modifier.fillMaxSize().walletGestures(!submitting, density, { currentHits }, layout.pocket, sway, physics, haptics) { release(it) }) {
+        Box(Modifier.fillMaxSize().walletGestures(currentEnabled, density, currentHits, currentPocket, currentSway, physics, haptics) { release(it) }) {
             Image(walletPainter, "열린 지갑", Modifier.rect(wallet), contentScale = ContentScale.FillBounds)
             Image(painterResource(Res.drawable.tray), "꺼낸 돈을 두는 접시",
                 Modifier.rect(layout.tray).graphicsLayer { alpha = if (overTray) 1f else 0.94f }, contentScale = ContentScale.FillBounds)

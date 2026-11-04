@@ -1,5 +1,6 @@
 package com.jim.realcash.ui.walletopen
 
+import com.jim.realcash.domain.ledger.WalletState
 import com.jim.realcash.domain.model.CashUnit
 import com.jim.realcash.domain.model.CashUnitId
 import com.jim.realcash.domain.model.CashUnitState
@@ -7,10 +8,10 @@ import com.jim.realcash.domain.model.total
 import com.jim.realcash.ui.AppEnvironment
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.random.Random
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
@@ -29,6 +30,7 @@ class WalletOpenModel(private val scope: CoroutineScope, private val env: AppEnv
     val physics = WalletOpenPhysics()
     private var debounce: Job? = null
     private var afterSave: (() -> Unit)? = null
+    private var queuedChoices = emptyMap<CashUnitId, Boolean>()
     private val trayOrder = repository.state.value.activeHand?.unitIds.orEmpty().toMutableList()
     private val choices = MutableStateFlow<Map<CashUnitId, Boolean>>(emptyMap())
     private val _submitting = MutableStateFlow(false)
@@ -36,22 +38,22 @@ class WalletOpenModel(private val scope: CoroutineScope, private val env: AppEnv
     private val _paymentInfoOpen = MutableStateFlow(false)
     val paymentInfoOpen = _paymentInfoOpen.asStateFlow()
 
-    private fun present(): WalletOpenUi {
-        val state = repository.state.value
-        return present(state.inWallet + state.inHand, choices.value,
-            if (choices.value.isEmpty()) state.activeHand?.unitIds.orEmpty() else trayOrder)
-    }
-    private fun present(units: List<CashUnit>, selection: Map<CashUnitId, Boolean>, order: List<CashUnitId>): WalletOpenUi {
+    private fun present(
+        state: WalletState = repository.state.value,
+        selection: Map<CashUnitId, Boolean> = choices.value,
+    ): WalletOpenUi {
+        val units = state.inWallet + state.inHand
+        val savedOrder = state.activeHand?.unitIds.orEmpty()
+        val order = if (selection.isEmpty()) savedOrder else trayOrder
         val hand = units.filter { selection[it.id] ?: (it.state == CashUnitState.IN_HAND) }
             .sortedBy { order.indexOf(it.id).takeIf { index -> index >= 0 } ?: Int.MAX_VALUE }
-        val handIds = hand.map { it.id }.toSet()
-        return WalletOpenUi(units.filter { it.id !in handIds }, hand,
-            units.any { (it.id in handIds) != (it.state == CashUnitState.IN_HAND) })
+        val handIds = hand.map { it.id }
+        val selectedIds = handIds.toSet()
+        return WalletOpenUi(units.filter { it.id !in selectedIds }, hand, handIds != savedOrder)
     }
 
-    val ui = combine(repository.state, choices) { state, selection ->
-        present(state.inWallet + state.inHand, selection, if (selection.isEmpty()) state.activeHand?.unitIds.orEmpty() else trayOrder)
-    }.stateIn(scope, SharingStarted.WhileSubscribed(5_000), present())
+    val ui = combine(repository.state, choices) { state, selection -> present(state, selection) }
+        .stateIn(scope, SharingStarted.WhileSubscribed(5_000), present())
 
     fun toggle(id: CashUnitId) {
         if (_submitting.value) return
@@ -67,7 +69,6 @@ class WalletOpenModel(private val scope: CoroutineScope, private val env: AppEnv
 
     /** A drop changes only presentation; the repository remains the ledger authority. */
     fun setOnTray(id: CashUnitId, onTray: Boolean) {
-        if (_submitting.value) return
         val unit = repository.state.value.units[id] ?: return
         if (unit.state != CashUnitState.IN_WALLET && unit.state != CashUnitState.IN_HAND) return
         if (choices.value.isEmpty()) {
@@ -76,6 +77,10 @@ class WalletOpenModel(private val scope: CoroutineScope, private val env: AppEnv
         }
         if (onTray) { if (id !in trayOrder) trayOrder += id } else trayOrder.remove(id)
         choices.value = choices.value + (id to onTray)
+        if (_submitting.value) {
+            queuedChoices = queuedChoices + (id to onTray)
+            return
+        }
         debounce?.cancel()
         debounce = scope.launch { delay(300); save() }
     }
@@ -92,32 +97,48 @@ class WalletOpenModel(private val scope: CoroutineScope, private val env: AppEnv
 
     private fun save() {
         if (_submitting.value) return
-        if (!present().changed) { choices.value = emptyMap(); return }
+        val draft = present()
+        if (!draft.changed) {
+            choices.value = emptyMap()
+            val callback = afterSave
+            afterSave = null
+            callback?.invoke()
+            return
+        }
+        val ids = draft.inHand.map { it.id }
+        // Keep the optimistic tray steady through returnHand's intermediate emission.
+        choices.value = (draft.inWallet + draft.inHand).associate { it.id to (it.id in ids) }
+        queuedChoices = emptyMap()
         _submitting.value = true
         scope.launch {
+            var succeeded = false
+            var cancelled = false
             try {
                 val ttl = env.data.settings.load().handTtl
-                val draft = present()
-                val ids = draft.inHand.map { it.id }
-                // Keep the optimistic tray steady through returnHand's intermediate emission.
-                choices.value = (draft.inWallet + draft.inHand).associate { it.id to (it.id in ids) }
                 if (repository.state.value.activeHand != null) repository.returnHand()
                 if (ids.isNotEmpty()) repository.moveToHand(ids, ttl = ttl)
-                choices.value = emptyMap()
-                val callback = afterSave
-                afterSave = null
-                callback?.invoke()
-            } catch (cancelled: CancellationException) {
+                succeeded = true
+            } catch (error: CancellationException) {
+                cancelled = true
                 physics.clear()
-                throw cancelled
+                throw error
             } catch (_: Exception) {
                 physics.clear()
                 env.messages.show("접시를 저장하지 못했어요. 현재 지갑 상태로 되돌렸어요.")
             } finally {
-                // Includes partial replacement failures: the latest repository state wins.
-                choices.value = emptyMap()
+                // Only retire the saved snapshot. Drops received during the write overlay its result,
+                // including a partial failure, and are flushed before a navigation callback can run.
+                choices.value = queuedChoices
+                queuedChoices = emptyMap()
+                val callback = afterSave
                 afterSave = null
                 _submitting.value = false
+                if (!cancelled) {
+                    if (choices.value.isNotEmpty()) {
+                        if (succeeded) afterSave = callback
+                        save()
+                    } else if (succeeded) callback?.invoke()
+                }
             }
         }
     }
