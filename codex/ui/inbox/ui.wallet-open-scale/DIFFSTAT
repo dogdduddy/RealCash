@@ -1,0 +1,8 @@
+a5dece617618e002d65415431b347c5422240a0b [codex-ui] ui.wallet-open-scale: 열린 지갑의 지폐를 실물 크기 비율로 키우고 겹쳐 꽂기
+
+ .../jim/realcash/ui/walletopen/WalletOpenLayout.kt | 68 +++++++++++++-----
+ .../jim/realcash/ui/walletopen/WalletOpenScreen.kt | 36 +++++-----
+ .../realcash/ui/walletopen/WalletOpenLayoutTest.kt | 82 ++++++++++++++++++----
+ .../ui/walletopen/WalletOpenNavigationTest.kt      | 12 ++--
+ .../ui/walletopen/WalletOpenScreenshotTest.kt      | 56 +++++++++++++++
+ 5 files changed, 198 insertions(+), 56 deletions(-)
