@@ -1,0 +1,9 @@
+d3defa143439410cfe4e0728879084189766df53 [codex-ui] ui.wallet-open-gesture-continuity: 열린 지갑 제스처가 저장·재배치 중에도 끊기지 않게
+
+ shared/ui/screenshots/w2-wallet-open-held.png      | Bin 0 -> 433980 bytes
+ .../com/jim/realcash/ui/walletopen/WalletMotion.kt |  42 +++--
+ .../jim/realcash/ui/walletopen/WalletOpenModel.kt  |  75 +++++---
+ .../jim/realcash/ui/walletopen/WalletOpenScreen.kt |   7 +-
+ .../ui/walletopen/WalletOpenGestureTest.kt         | 189 +++++++++++++++++++++
+ .../realcash/ui/walletopen/WalletOpenModelTest.kt  | 154 +++++++++++++++++
+ 6 files changed, 420 insertions(+), 47 deletions(-)
