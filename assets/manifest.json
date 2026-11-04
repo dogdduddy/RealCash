@@ -81,6 +81,47 @@
       "source": "gpt",
       "aiGenerated": true,
       "role": "10원 주화 앞면 (다보탑, 구릿빛 신형, 실물풍)"
+    },
+    "wallet.closed.a": {
+      "path": "assets/img/drawable/wallet_closed.png",
+      "resource": "wallet_closed",
+      "size": "1024x540",
+      "status": "draft",
+      "source": "gpt",
+      "aiGenerated": true,
+      "role": "홈: 접힌 장지갑(위에서 본 모습). 두께는 코드로 추가"
+    },
+    "wallet.open.a": {
+      "path": "assets/img/drawable/wallet_open.png",
+      "resource": "wallet_open",
+      "size": "640x1024",
+      "status": "draft",
+      "source": "gpt",
+      "aiGenerated": true,
+      "role": "열린 지갑 화면 본체(세로, 입구 위쪽)",
+      "pocket": {
+        "$comment": "이미지 전체 크기 대비 비율. 지폐를 꽂을 포켓 안쪽 영역과 입구(윗가장자리) 위치",
+        "topFraction": 0.405,
+        "leftFraction": 0.037,
+        "rightFraction": 0.963,
+        "bottomFraction": 0.98
+      }
+    },
+    "tray.a": {
+      "path": "assets/img/drawable/tray.png",
+      "resource": "tray",
+      "size": "1024x427",
+      "status": "draft",
+      "source": "gpt",
+      "aiGenerated": true,
+      "role": "열린 지갑 화면 상단 접시(캐셔 트레이)",
+      "inner": {
+        "$comment": "이미지 전체 크기 대비 비율. 지폐·동전을 올릴 수 있는 바닥 영역",
+        "leftFraction": 0.05,
+        "topFraction": 0.13,
+        "rightFraction": 0.95,
+        "bottomFraction": 0.9
+      }
     }
   }
 }

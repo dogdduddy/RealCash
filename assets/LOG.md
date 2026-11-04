@@ -30,3 +30,8 @@
 - 의뢰서: assets/jobs/done/07-coin.c50.a, 08-coin.c10.a. 각 1회 생성(c50 은 1236s — 한도 대기 포함, c10 97s). 원본 1254x1254 → assets/raw/<id>-1.png
 - 처리: chroma-key --key magenta(despill 0.26%, 잔여 0%) → fit 512x512 → assets/img/drawable/coin_c50.png, coin_c10.png
 - 검수: 인물 없음, 벼 이삭/다보탑 도안·재질(양백/구리) 충실, 정원. PASS draft · aiGenerated: true · source: gpt
+
+## wallet.closed.a / wallet.open.a / tray.a — 홈·열린 지갑 소품 (2026-11-04)
+- 의뢰서: assets/jobs/done/09~11. 각 1회 생성(62s/60s/74s). 원본 1254x1254 → assets/raw/<id>-1.png
+- 처리: chroma-key --key green(잔여 0%) → fit 1024x540 / 640x1024 / 1024x427 --margin 0.0 → assets/img/drawable/wallet_closed.png, wallet_open.png, tray.png
+- 검수: 글자·로고·손·돈 없음, 가죽·고무 질감 사실적, 포켓 비움. 포켓·트레이 안쪽 좌표(비율)는 manifest.json 에 기록. PASS draft · aiGenerated: true · source: gpt
