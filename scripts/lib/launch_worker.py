@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Detach a worker from the launching shell's process group and terminal.
 
-Usage: python3 scripts/lib/launch_worker.py codex|sync
+Usage: python3 scripts/lib/launch_worker.py codex|sync|ui
 Writes scripts/log/<worker>.pid and appends output to scripts/log/worker-<worker>.nohup.
 """
 
@@ -14,11 +14,12 @@ import time
 
 root = Path(__file__).resolve().parents[2]
 worker = sys.argv[1] if len(sys.argv) > 1 else ""
-if worker not in ("codex", "sync"):
-    raise SystemExit("unknown worker (codex|sync)")
+SCRIPTS = {"codex": "worker-codex.sh", "sync": "worker-sync.sh", "ui": "worker-codex-ui.sh"}
+if worker not in SCRIPTS:
+    raise SystemExit("unknown worker (codex|sync|ui)")
 log = root / "scripts/log"
 log.mkdir(parents=True, exist_ok=True)
-command = ["bash", str(root / ("scripts/worker-%s.sh" % worker))]
+command = ["bash", str(root / "scripts" / SCRIPTS[worker])]
 if shutil.which("caffeinate"):
     command = ["caffeinate", "-i", "-s", *command]
 with (log / ("worker-%s.nohup" % worker)).open("ab") as output:

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# 이미지 워커 멈추기: STOP 파일을 만들면 워커가 현재 작업을 마치고 끝난다. --now 를 주면 즉시 종료.
+# 워커 멈추기 (이미지·동기화·UI): STOP 파일을 만들면 워커가 현재 작업을 마치고 끝난다. --now 를 주면 즉시 종료.
 cd "$(dirname "$0")/.." || exit 1
 mkdir -p scripts/log
 touch scripts/STOP
-echo "STOP 파일을 만들었어요. 진행 중인 이미지 작업이 끝나면 멈춰요."
+echo "STOP 파일을 만들었어요. 진행 중인 이미지·UI 작업이 끝나면 멈춰요."
 if [ "${1:-}" = "--now" ]; then
   # pid 파일의 프로세스가 정말 이 저장소의 워커인지(명령줄의 절대 경로) 확인한 뒤
   # 그 프로세스와 자손(codex 등)만 종료한다. 재사용된 pid의 다른 프로세스는 건드리지 않는다.
@@ -37,7 +37,7 @@ def alive(targets):
 
 table = processes()
 targets = {}
-for worker in ("codex", "sync"):
+for worker, script in (("codex", "worker-codex.sh"), ("sync", "worker-sync.sh"), ("ui", "worker-codex-ui.sh")):
     path = root / ("scripts/log/%s.pid" % worker)
     try:
         pid = int(path.read_text().strip())
@@ -45,7 +45,7 @@ for worker in ("codex", "sync"):
         continue
     command = subprocess.run(["ps", "-p", str(pid), "-o", "args="],
                              capture_output=True, text=True).stdout
-    if str(root / ("scripts/worker-%s.sh" % worker)) not in command:
+    if str(root / "scripts" / script) not in command:
         if command.strip():
             print("PID owner differs; leaving it alone:", pid)
         continue

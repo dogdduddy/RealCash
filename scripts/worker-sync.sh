@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# 동기화 워커: 주기적으로 이미지 작업 결과(assets/inbox, assets/jobs)를 커밋해 GitHub에 올리고,
-# 클라우드 Claude 세션이 올린 의뢰서·검수 결과를 받아온다. 이미지 경로 밖의 파일은 커밋하지 않는다.
+# 동기화 워커: 주기적으로 이미지·UI 작업 기록(assets/inbox, assets/jobs, codex/ui)을 커밋해 GitHub에 올리고,
+# 클라우드 Claude 세션이 올린 의뢰서·검수 결과를 받아온다. 이 세 경로 밖의 파일은 커밋하지 않는다.
+# (UI 작업의 코드 변경은 UI 워커가 codex/ui/<id> 브랜치로 따로 push한다.)
 # 실행: bash scripts/start.sh (직접 실행하지 말 것). 설명: docs/03-gpt-image-pipeline.md
 #
 # 환경 변수
@@ -28,10 +29,24 @@ cleanup() { rm -f "$lock/pid"; rmdir "$lock" 2>/dev/null; }
 trap cleanup EXIT
 trap 'exit 0' TERM INT
 
-job_running() { ls "$ROOT"/assets/jobs/running/*.prompt.md >/dev/null 2>&1; }
+# 생성·작업 중인 의뢰가 있으면 true (이미지 또는 UI)
+job_running() {
+  local f
+  for f in "$ROOT"/assets/jobs/running/*.prompt.md "$ROOT"/codex/ui/running/*.prompt.md; do
+    [ -e "$f" ] && return 0
+  done
+  return 1
+}
+
+# 커밋 대상 중 실제로 있는 경로만 (없는 경로를 주면 git add 전체가 실패한다)
+sync_paths() {
+  local p out=""
+  for p in assets/inbox assets/jobs codex/ui; do [ -e "$p" ] && out="$out $p"; done
+  echo "$out"
+}
 
 sync_once() {
-  local branch git_dir
+  local branch git_dir paths
   branch=$(git symbolic-ref --short HEAD 2>/dev/null)
   if [ "$branch" != "$SYNC_BRANCH" ]; then log "not on $SYNC_BRANCH ($branch); skip"; return 1; fi
   git_dir=$(git rev-parse --git-dir 2>/dev/null) || { log "not a git repository; skip"; return 1; }
@@ -39,11 +54,15 @@ sync_once() {
     log "rebase/merge in progress; skip"; return 1
   fi
   # 생성 중인 결과는 반쪽으로 올리지 않는다. 받기만 한다.
-  if ! job_running; then
-    git add -A -- assets/inbox assets/jobs
-    if ! git diff --cached --quiet -- assets/inbox assets/jobs; then
-      git commit -q -m "[sync] 이미지 작업 결과" -- assets/inbox assets/jobs || { log "commit failed"; return 1; }
-      log "committed image results"
+  paths=$(sync_paths)
+  if ! job_running && [ -n "$paths" ]; then
+    # shellcheck disable=SC2086
+    git add -A -- $paths
+    # shellcheck disable=SC2086
+    if ! git diff --cached --quiet -- $paths; then
+      # shellcheck disable=SC2086
+      git commit -q -m "[sync] 이미지 작업 결과" -- $paths || { log "commit failed"; return 1; }
+      log "committed job results"
     fi
   fi
   if ! git pull -q --rebase --autostash "$SYNC_REMOTE" "$SYNC_BRANCH" >> "$LOG_DIR/sync-last.out" 2>&1; then

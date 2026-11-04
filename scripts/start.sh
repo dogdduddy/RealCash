@@ -1,21 +1,32 @@
 #!/usr/bin/env bash
-# 이미지 워커 시작: 사전 점검 → Codex 워커와 동기화 워커를 백그라운드로 실행 (맥이 잠들지 않게 caffeinate)
+# 워커 시작: 사전 점검 → Codex 이미지 워커, 동기화 워커, Codex UI 워커를 백그라운드로 실행 (맥이 잠들지 않게 caffeinate)
 # 사용: bash scripts/start.sh        (SYNC_BRANCH=main 이 기본. 다른 브랜치면 SYNC_BRANCH=<브랜치> bash scripts/start.sh)
+#       UI_WORKER=0 bash scripts/start.sh  → UI 워커 없이 이미지만
 cd "$(dirname "$0")/.." || exit 1
 ROOT=$(pwd)
 ok=1
-WORKERS="codex sync"
+UI_WORKER=${UI_WORKER:-1}
+if [ "$UI_WORKER" = 1 ]; then WORKERS="codex sync ui"; else WORKERS="codex sync"; fi
 NEED="git codex node python3"
 SYNC_REMOTE=${SYNC_REMOTE:-origin}
 SYNC_BRANCH=${SYNC_BRANCH:-main}
 export SYNC_REMOTE SYNC_BRANCH
 say() { printf '%s\n' "$*"; }
 
-say "== RealCash 이미지 워커 사전 점검 =="
+say "== RealCash 워커 사전 점검 ($WORKERS) =="
 for c in $NEED; do
   if command -v "$c" >/dev/null 2>&1; then say "[ok] $c"; else say "[x] $c 가 없어요"; ok=0; fi
 done
 [ "$ok" -eq 1 ] || { say "필요한 도구를 설치한 뒤 다시 실행하세요."; exit 1; }
+if [ "$UI_WORKER" = 1 ]; then
+  if [ "${UI_CHECK_CMD:-}" = skip ]; then say "[!] UI_CHECK_CMD=skip — UI 작업을 검사 없이 브랜치로 올려요"
+  elif command -v java >/dev/null 2>&1 && java -version >/dev/null 2>&1; then say "[ok] java (UI 검사 ${UI_CHECK_CMD:-./gradlew -q :shared:ui:jvmTest})"
+  else
+    say "[!] java 가 없어요 — UI 작업은 검사(./gradlew)에서 실패로 끝나요."
+    say "    JDK 17 이상을 설치하거나, 검사 없이 돌리려면 UI_CHECK_CMD=skip, UI를 끄려면 UI_WORKER=0."
+  fi
+  [ -f docs/handoff/CODEX-UI-TICK.md ] || say "[!] docs/handoff/CODEX-UI-TICK.md 가 없어요 — UI 워커가 기다리기만 해요"
+fi
 
 . "$ROOT/scripts/lib/common.sh"
 
@@ -44,7 +55,7 @@ else say "[x] Codex 실패 (codex login 확인):"; tail -n 5 "$LOG_DIR/preflight
 
 # 정지 중인 워커가 현재 작업을 마치는 중이면 STOP을 지우지 않는다.
 if [ -f "$STOP_FILE" ]; then
-  for w in $WORKERS; do
+  for w in codex sync ui; do
     pidf="$LOG_DIR/$w.pid"
     if [ -f "$pidf" ] && kill -0 "$(cat "$pidf")" 2>/dev/null; then
       say "워커가 종료 중입니다. 현재 작업이 끝난 뒤 start.sh를 다시 실행하세요."
@@ -61,7 +72,7 @@ for w in $WORKERS; do
 done
 
 say ""
-say "이미지 워커가 돌기 시작했어요 (동기화 브랜치: $SYNC_BRANCH)."
+say "워커가 돌기 시작했어요: $WORKERS (동기화 브랜치: $SYNC_BRANCH)."
 say "- 맥은 전원에 연결하고 덮개는 열어 두세요 (덮개를 닫으면 잠들어요)."
 say "- 진행 상황: bash scripts/status.sh"
 say "- 멈추기: bash scripts/stop.sh   (즉시: bash scripts/stop.sh --now)"

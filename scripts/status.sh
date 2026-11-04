@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# 이미지 워커 상태 한눈에 보기
+# 워커 상태 한눈에 보기 (이미지·동기화·UI)
 cd "$(dirname "$0")/.." || exit 1
 L=scripts/log
-for w in codex sync; do
+for w in codex sync ui; do
   pidf="$L/$w.pid"
   if [ -f "$pidf" ] && kill -0 "$(cat "$pidf")" 2>/dev/null; then echo "● $w 워커 실행 중 (pid $(cat "$pidf"))"; else echo "○ $w 워커 멈춤"; fi
 done
@@ -23,6 +23,22 @@ for r in assets/jobs/blocked/*.reason; do
   [ -f "$r" ] || continue
   echo "  blocked: $(basename "$r" .reason) — $(cat "$r")"
 done
+echo
+echo "== UI 의뢰 =="
+for d in queue running done failed blocked hold; do
+  printf '%-8s %s\n' "$d" "$(ls codex/ui/$d/*.prompt.md 2>/dev/null | wc -l | tr -d ' ')"
+done
+n=0
+for s in codex/ui/inbox/*/STATUS; do
+  [ -f "$s" ] || continue
+  [ -f "${s%/STATUS}/REVIEWED" ] || n=$((n + 1))
+done
+echo "미검수   $n (${UI_MAX_UNREVIEWED:-2}개면 UI 워커가 대기)"
+for r in codex/ui/blocked/*.reason; do
+  [ -f "$r" ] || continue
+  echo "  blocked: $(basename "$r" .reason) — $(cat "$r")"
+done
+[ -f "$L/ui-last" ] && echo "마지막 UI 작업: $(cat "$L/ui-last")"
 echo
 echo "== 최근 기록 =="
 tail -n 12 "$L/runner-$(date +%F).log" 2>/dev/null || echo "(오늘 기록 없음)"

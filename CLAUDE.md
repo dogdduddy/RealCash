@@ -21,3 +21,25 @@ RealCash는 카드·간편결제는 그대로 쓰면서 돈을 보고·꺼내고
 - 미검수가 4개 쌓이면 워커가 멈추므로 검수를 먼저 한다.
 - 시안 여러 장은 사용자에게 보여 주고 고르게 한다. final은 사람 승인 뒤에만.
 - push 충돌 시 assets/inbox·assets/jobs는 원격(맥) 쪽 변경을 살린다.
+
+## UI 작업 (GPT 위임)
+- GPT/Codex에 맡기는 일은 이미지와 UI뿐이다. UI 의뢰서는 `shared/ui` 안에서 끝나는 일만 쓴다: 화면 다듬기,
+  애니메이션·물리감, 레이아웃, 검수 통과한 그림(assets/img/) 연결. 도메인·데이터 로직(shared/domain, shared/data),
+  Gradle·의존성 변경은 절대 의뢰하지 않는다 (필요하면 Claude 세션이 직접 한다).
+- codex/ui/queue/NN-<id>.prompt.md 의뢰서를 .tmp로 쓴 뒤 이름을 바꿔 넣고 동기화 브랜치에 커밋·push한다.
+  이름 규칙은 이미지와 같다. 워커가 docs/handoff/CODEX-UI-TICK.md(상시 지시)를 앞에 붙여 실행하므로
+  의뢰서에는 이번 작업만 적는다. 첫 줄에 $imagegen을 쓰지 않는다. 틀:
+  [목적] 무엇을 왜 / [화면·파일] 대상 화면과 shared/ui 안 파일 / [요청] 첫 줄이 커밋 제목(60자)이 된다 /
+  [완료 기준] 검사 가능한 항목으로 / [비교] 참고 스크린샷·그림 경로(있으면) / [절대 금지] 건드리면 안 되는 것.
+  선행 조건은 이미지와 같이 `# requires-review: <id>`(이미지 id도 됨), `# requires-gate: <게이트>`.
+- 워커는 허용 경로(shared/ui/, assets/img/) 밖 변경, 변경 없음, 검사(:shared:ui:jvmTest) 실패면 전부 되돌리고
+  failed + failed.patch를 남긴다. 성공하면 codex/ui/<id> 브랜치(재시도는 codex/ui/<id>-r<N>)에 커밋해 push하고
+  codex/ui/inbox/<id>/에 STATUS(브랜치·커밋), DIFFSTAT, codex.log를 둔다.
+- 검수 대상: codex/ui/inbox/<id>/STATUS가 있고 REVIEWED가 없는 폴더. STATUS의 브랜치를 git fetch 하고
+  DIFFSTAT으로 범위를 본 뒤 diff를 읽고, 여기서 ./gradlew :shared:ui:jvmTest를 돌리고, 스크린샷이 있으면 직접 본다.
+  - 통과: 개발 브랜치에 git merge --no-ff <브랜치>, REVIEWED에 "PASS merged <sha>", 원격 작업 브랜치 삭제
+    (git push origin --delete <브랜치>).
+  - 불합격: REVIEWED에 "FAIL 이유", 결과를 attempt-N/으로 옮기고 이유를 반영한 새 의뢰서(새 NN)로 다시 넣는다.
+    원격 작업 브랜치는 지운다. 같은 id 3회 실패면 사람에게 묻는다. ATTEMPTS는 지우지 않는다.
+- 미검수 UI 결과가 2개 쌓이면 UI 워커가 멈춘다. 이미지 의뢰가 큐에 있으면 UI 워커는 기다린다(이미지 먼저).
+- push 충돌 시 codex/ui도 원격(맥) 쪽 변경을 살린다.

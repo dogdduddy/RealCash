@@ -10,9 +10,11 @@ git init -q "$TMP/seed"
 (
   cd "$TMP/seed" || exit 1
   git checkout -q -b main
-  mkdir -p assets/jobs/queue assets/jobs/running assets/inbox
+  mkdir -p assets/jobs/queue assets/jobs/running assets/inbox codex/ui/queue codex/ui/running codex/ui/inbox
   : > assets/jobs/queue/.gitkeep; : > assets/jobs/running/.gitkeep; : > assets/inbox/.gitkeep
+  : > codex/ui/queue/.gitkeep; : > codex/ui/running/.gitkeep; : > codex/ui/inbox/.gitkeep
   cp "$SRC/assets/.gitignore" assets/.gitignore
+  cp "$SRC/codex/.gitignore" codex/.gitignore
   printf '*.log\n' > .gitignore   # 루트 규칙이 Codex 로그를 막지 않는지도 같이 본다
   echo readme > README.md
   git add -A && git commit -qm init && git remote add origin "$TMP/remote.git" && git push -q origin main
@@ -62,6 +64,24 @@ check "running/의 파일은 안 올림" eval '! echo "$files" | grep -q "^asset
 check "다른 경로는 안 올림" eval '! echo "$files" | grep -q "^other.txt$" && [ "$(git -C "$TMP/remote.git" show main:README.md)" = readme ]'
 check "커밋 메시지" [ "$(git -C "$TMP/remote.git" log -1 --format=%s main)" = "[sync] 이미지 작업 결과" ]
 check "README 수정은 작업 트리에 그대로" [ "$(cat "$TMP/mac/README.md")" = unrelated ]
+
+# 3b) UI 작업 중(codex/ui/running/에 의뢰서)이면 커밋하지 않고, 끝나면 codex/ui 기록을 올린다
+echo 'ui prompt' > "$TMP/mac/codex/ui/running/01-ui.x.prompt.md"
+mkdir -p "$TMP/mac/codex/ui/inbox/ui.x"
+echo 'half' > "$TMP/mac/codex/ui/inbox/ui.x/codex.log"
+echo 'img late' > "$TMP/mac/assets/inbox/test.a/late.txt"
+before=$(git -C "$TMP/remote.git" rev-parse main)
+sync_once
+check "UI 작업 중에는 원격에 새 커밋 없음 (이미지 결과도 대기)" [ "$(git -C "$TMP/remote.git" rev-parse main)" = "$before" ]
+mkdir -p "$TMP/mac/codex/ui/done"
+mv "$TMP/mac/codex/ui/running/01-ui.x.prompt.md" "$TMP/mac/codex/ui/done/"
+echo 'done 2026-01-01 branch=codex/ui/ui.x commit=abc check=ok 5s' > "$TMP/mac/codex/ui/inbox/ui.x/STATUS"
+sync_once
+files=$(remote_files)
+check "UI STATUS·codex.log를 올림" eval 'echo "$files" | grep -q "^codex/ui/inbox/ui.x/STATUS$" && echo "$files" | grep -q "^codex/ui/inbox/ui.x/codex.log$"'
+check "UI done/ 의뢰서를 올림" eval 'echo "$files" | grep -q "^codex/ui/done/01-ui.x.prompt.md$"'
+check "UI running/은 안 올림" eval '! echo "$files" | grep -q "^codex/ui/running/0"'
+check "기다리던 이미지 결과도 함께 올림" eval 'echo "$files" | grep -q "^assets/inbox/test.a/late.txt$"'
 
 # 4) SYNC_BRANCH와 다른 브랜치면 아무것도 안 한다
 git -C "$TMP/mac" checkout -q -b feature
