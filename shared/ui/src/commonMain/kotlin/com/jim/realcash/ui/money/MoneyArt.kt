@@ -9,6 +9,10 @@ import com.jim.realcash.ui.resources.bill_w50000
 import com.jim.realcash.ui.resources.bill_w10000
 import com.jim.realcash.ui.resources.bill_w5000
 import com.jim.realcash.ui.resources.bill_w1000
+import com.jim.realcash.ui.resources.coin_c500
+import com.jim.realcash.ui.resources.coin_c100
+import com.jim.realcash.ui.resources.coin_c50
+import com.jim.realcash.ui.resources.coin_c10
 import org.jetbrains.compose.resources.painterResource
 
 /**
@@ -26,7 +30,7 @@ interface MoneyArt {
     }
 }
 
-/** Reviewed bill artwork bundled by Compose resources on Android, iOS and desktop. Coins stay on Canvas. */
+/** Reviewed bill and coin artwork bundled by Compose resources on Android, iOS and desktop. */
 object ResourceMoneyArt : MoneyArt {
     @Composable
     override fun painter(denomination: Denomination): Painter? = when (denomination) {
@@ -34,7 +38,10 @@ object ResourceMoneyArt : MoneyArt {
         Denomination.W10000 -> painterResource(Res.drawable.bill_w10000)
         Denomination.W5000 -> painterResource(Res.drawable.bill_w5000)
         Denomination.W1000 -> painterResource(Res.drawable.bill_w1000)
-        else -> null
+        Denomination.C500 -> painterResource(Res.drawable.coin_c500)
+        Denomination.C100 -> painterResource(Res.drawable.coin_c100)
+        Denomination.C50 -> painterResource(Res.drawable.coin_c50)
+        Denomination.C10 -> painterResource(Res.drawable.coin_c10)
     }
 }
 

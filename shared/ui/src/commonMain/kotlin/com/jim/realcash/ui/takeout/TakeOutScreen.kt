@@ -378,8 +378,8 @@ private fun DragGhost(denomination: Denomination, drag: DragDropState) {
     val art = LocalMoneyArt.current
     val density = LocalDensity.current
     val isBill = denomination.kind == Denomination.Kind.BILL
-    val width = if (isBill) GhostBillWidth * denomination.relativeSize else GhostCoinSize
-    val height = if (isBill) width / denomination.billAspectRatio else GhostCoinSize
+    val width = if (isBill) GhostBillWidth * denomination.relativeSize else GhostCoinSize * denomination.relativeSize
+    val height = if (isBill) width / denomination.billAspectRatio else width
     val halfW = with(density) { width.toPx() / 2f }
     val halfH = with(density) { height.toPx() / 2f }
     MoneyFace(
@@ -391,9 +391,9 @@ private fun DragGhost(denomination: Denomination, drag: DragDropState) {
                 val o = drag.hostOrigin
                 translationX = p.x - o.x - halfW
                 translationY = p.y - o.y - halfH
-                rotationZ = -3f
-                scaleX = 1.08f
-                scaleY = 1.08f
+                rotationZ = if (isBill) -3f else 0f
+                scaleX = if (isBill) 1.08f else 1f
+                scaleY = if (isBill) 1.08f else 1f
             }
             .shadow(6.dp, if (isBill) RoundedCornerShape(2.dp) else CircleShape),
         art.painter(denomination),
