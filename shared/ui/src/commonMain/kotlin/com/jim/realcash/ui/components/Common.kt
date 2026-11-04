@@ -3,11 +3,9 @@ package com.jim.realcash.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -88,17 +86,5 @@ fun FlagBadges(flags: Set<SettlementFlag>, modifier: Modifier = Modifier) {
     if (flags.isEmpty()) return
     FlowRow(modifier, horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         SettlementFlag.entries.filter { it in flags }.forEach { FlagBadge(it) }
-    }
-}
-
-/** Centered title + note used by the T5b placeholder tabs. */
-@Composable
-fun PlaceholderBody(title: String, note: String, modifier: Modifier = Modifier, extra: @Composable () -> Unit = {}) {
-    Column(modifier.fillMaxSize()) {
-        ScreenHeader(title)
-        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)) {
-            Text(note, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            extra()
-        }
     }
 }

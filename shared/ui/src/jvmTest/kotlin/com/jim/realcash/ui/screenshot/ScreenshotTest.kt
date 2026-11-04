@@ -1,7 +1,9 @@
 package com.jim.realcash.ui.screenshot
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.ImageComposeScene
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.Density
 import com.jim.realcash.data.RealCashData
 import com.jim.realcash.data.db.DriverFactory
@@ -16,6 +18,7 @@ import com.jim.realcash.domain.model.DetectedPayment
 import com.jim.realcash.domain.model.PaymentId
 import com.jim.realcash.domain.model.Won
 import com.jim.realcash.domain.parser.DefaultRules
+import com.jim.realcash.domain.parser.RawNotification
 import com.jim.realcash.domain.util.SequentialIdGenerator
 import com.jim.realcash.ui.AppEnvironment
 import com.jim.realcash.ui.AppState
@@ -23,10 +26,14 @@ import com.jim.realcash.ui.Haptics
 import com.jim.realcash.ui.RealCashRoot
 import com.jim.realcash.ui.theme.RealCashTheme
 import com.jim.realcash.ui.Screen
+import com.jim.realcash.ui.Tab
 import com.jim.realcash.ui.UiMessages
+import com.jim.realcash.ui.takeout.TakeOutFeedback
 import java.io.File
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.hours
@@ -40,7 +47,7 @@ import kotlinx.datetime.TimeZone
 import org.jetbrains.skia.EncodedImageFormat
 
 /**
- * Renders every T5a screen offscreen with [ImageComposeScene] at 390×844 logical px (density 2) over a real
+ * Renders every screen offscreen with [ImageComposeScene] at 390×844 logical px (density 2) over a real
  * [RealCashData] on an in-memory database, and writes PNGs to `shared/ui/build/screenshots/`.
  *
  * The clock is frozen at 2026-11-04 18:00 KST (a Wednesday; weekly period Mon 11.2 – Sun 11.8).
@@ -56,8 +63,13 @@ class ScreenshotTest {
     private val outDir = File(System.getProperty("realcash.screenshotDir") ?: "build/screenshots").apply { mkdirs() }
 
     /** Fresh data layer; SQLite calls run inline (no dispatcher hop), so every mutation completes synchronously. */
-    private fun newData(): RealCashData =
-        RealCashData(DriverFactory().createDriver(), fixedClock, SequentialIdGenerator("id-"), ioContext = EmptyCoroutineContext)
+    private fun newData(clock: Clock = fixedClock): RealCashData =
+        RealCashData(DriverFactory().createDriver(), clock, SequentialIdGenerator("id-"), ioContext = EmptyCoroutineContext)
+
+    /** A data-layer clock that can be moved, so ledger events land on different days (the UI clock stays fixed). */
+    private class MovableClock(var now: Instant) : Clock {
+        override fun now(): Instant = now
+    }
 
     /** An [AppState] whose scope runs inline, with settings and ledger loaded. */
     private fun newAppState(data: RealCashData): AppState {
@@ -151,14 +163,92 @@ class ScreenshotTest {
         render("g-wallet-dark", dark = true) { RealCashRoot(app, showDebugShortcut = true) }
     }
 
-    private fun render(name: String, dark: Boolean = false, content: @Composable () -> Unit) {
-        val scene = ImageComposeScene(WIDTH * SCALE, HEIGHT * SCALE, Density(SCALE.toFloat())) {
+    @Test
+    fun h_takeOutOverExpected() = runBlocking {
+        val data = newData().apply { seedAllowance() }
+        val app = newAppState(data)
+        app.navigate(Screen.TakeOut(refill = false))
+        app.takeOut.onExpectedChange("13000")
+        app.takeOut.tapAdd(W10000)
+        app.takeOut.tapAdd(W5000)
+        val feedback = assertIs<TakeOutFeedback.Over>(app.takeOut.draft.value.feedback)
+        assertEquals(Won(2_000), feedback.changeTotal)
+        render("h-takeout-over") { RealCashRoot(app) }
+    }
+
+    @Test
+    fun i_takeOutMidDrag() = runBlocking {
+        val data = newData().apply { seedAllowance() }
+        val app = newAppState(data)
+        app.navigate(Screen.TakeOut(refill = false))
+        val model = app.takeOut
+        model.onExpectedChange("13000")
+        model.tapAdd(W10000)
+        render("i-takeout-dragging", midway = {
+            // Drive the hoisted drag state directly (no pointer events): a 5,000 bill held over the hand zone.
+            val zone = checkNotNull(model.drag.zoneBounds) { "the hand zone reports its bounds after layout" }
+            model.drag.start(W5000, zone.center + Offset(zone.width * 0.18f, 0f))
+            Snapshot.sendApplyNotifications()
+        }) { RealCashRoot(app) }
+        assertTrue(model.drag.isOverZone, "the ghost is over the hand zone")
+    }
+
+    @Test
+    fun j_exchangeReceiveStep() = runBlocking {
+        val data = newData().apply { seedAllowance() }
+        val app = newAppState(data)
+        app.navigate(Screen.Exchange)
+        app.exchange.addToTray(W50000)
+        app.exchange.toReceive()
+        assertTrue(app.exchange.draft.value.isValid)
+        render("j-exchange-receive") { RealCashRoot(app) }
+    }
+
+    @Test
+    fun k_ledger() = runBlocking {
+        val clock = MovableClock(Instant.parse("2026-11-02T00:30:00Z")) // Mon 09:30 KST
+        val data = newData(clock).apply {
+            seedAllowance()
+            clock.now = Instant.parse("2026-11-03T03:10:00Z") // Tue 12:10: take 10,000 out, pay 6,500 with it
+            seedHand(W10000, expected = Won(7_000))
+            intake.onNotification(RawNotification(DefaultRules.SAMSUNG_WALLET, "결제 완료", "스타벅스 강남점에서 6,500원 결제", null, clock.now))
+            clock.now = Instant.parse("2026-11-04T01:20:00Z") // Wed 10:20: exchange the 50,000 bill
+            val fifty = wallet.state.value.inWallet.first { it.denomination == W50000 }
+            wallet.exchange(listOf(fifty.id), mapOf(W10000 to 5))
+            clock.now = Instant.parse("2026-11-04T08:40:00Z") // Wed 17:40: paid without taking cash out
+            intake.onNotification(RawNotification(DefaultRules.TOSS, "토스페이", "12,000원 결제 | 김밥천국 역삼점", null, clock.now))
+        }
+        val app = newAppState(data)
+        app.selectTab(Tab.LEDGER)
+        val summary = app.ledger.ui.value.summary
+        assertEquals(2, summary.paymentCount)
+        assertEquals(1, summary.directCount)
+        render("k-ledger") { RealCashRoot(app) }
+    }
+
+    @Test
+    fun l_settings() = runBlocking {
+        val app = newAppState(newData())
+        app.selectTab(Tab.SETTINGS)
+        // Taller than a phone so the whole tab, including 감지 앱 and the 디버그 section, is visible in one image.
+        render("l-settings", height = 1420) { RealCashRoot(app) }
+    }
+
+    private fun render(
+        name: String,
+        dark: Boolean = false,
+        height: Int = HEIGHT,
+        midway: (() -> Unit)? = null,
+        content: @Composable () -> Unit,
+    ) {
+        val scene = ImageComposeScene(WIDTH * SCALE, height * SCALE, Density(SCALE.toFloat())) {
             RealCashTheme(darkTheme = dark, content = content)
         }
         try {
             // Advance the frame clock so enter animations (sheet, ripples) settle before the final frame.
             var t = 0L
-            repeat(40) {
+            repeat(40) { frame ->
+                if (frame == 20) midway?.invoke()
                 scene.render(t)
                 t += FRAME_NANOS
             }

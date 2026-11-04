@@ -23,9 +23,11 @@ import com.jim.realcash.ui.allowance.ReceiveAllowanceScreen
 import com.jim.realcash.ui.components.RcIcon
 import com.jim.realcash.ui.components.RcIconGlyph
 import com.jim.realcash.ui.confirm.ConfirmPaymentsSheet
-import com.jim.realcash.ui.settings.LedgerPlaceholderScreen
-import com.jim.realcash.ui.settings.SettingsPlaceholderScreen
+import com.jim.realcash.ui.exchange.ExchangeScreen
+import com.jim.realcash.ui.ledger.LedgerScreen
+import com.jim.realcash.ui.settings.SettingsScreen
 import com.jim.realcash.ui.simulator.NotificationSimulatorScreen
+import com.jim.realcash.ui.takeout.TakeOutScreen
 import com.jim.realcash.ui.theme.RealCashTheme
 import com.jim.realcash.ui.wallet.WalletHomeScreen
 import kotlin.time.Clock
@@ -113,10 +115,14 @@ fun RealCashRoot(
                     model = appState.walletHome,
                     onReceiveAllowance = { appState.navigate(Screen.ReceiveAllowance) },
                     onOpenPending = appState::openConfirmSheet,
+                    onTakeOut = { appState.navigate(Screen.TakeOut(refill = false)) },
+                    onTakeMore = { appState.navigate(Screen.TakeOut(refill = true)) },
+                    onExchange = { appState.navigate(Screen.Exchange) },
                     onOpenSimulator = if (showDebugShortcut) ({ appState.navigate(Screen.NotificationSimulator) }) else null,
                 )
-                Screen.Ledger -> LedgerPlaceholderScreen()
-                Screen.Settings -> SettingsPlaceholderScreen(
+                Screen.Ledger -> LedgerScreen(appState.ledger, appState.env.timeZone)
+                Screen.Settings -> SettingsScreen(
+                    model = appState.settings,
                     onOpenSimulator = { appState.navigate(Screen.NotificationSimulator) },
                     platformEntries = platformDebugEntries,
                     onOpenPlatformEntry = { index -> appState.navigate(PlatformDebugScreen(index)) },
@@ -126,6 +132,14 @@ fun RealCashRoot(
                     ReceiveAllowanceScreen(model, onBack = { appState.back() })
                 }
                 Screen.NotificationSimulator -> NotificationSimulatorScreen(appState.simulator, onBack = { appState.back() })
+                is Screen.TakeOut -> {
+                    val model = remember(screen) { appState.takeOut }
+                    TakeOutScreen(model, onBack = { appState.back() })
+                }
+                Screen.Exchange -> {
+                    val model = remember { appState.exchange }
+                    ExchangeScreen(model, onBack = { appState.back() })
+                }
                 is PlatformDebugScreen -> platformDebugEntries.getOrNull(screen.index)?.content?.invoke { appState.back() }
             }
         }

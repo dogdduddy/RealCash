@@ -62,6 +62,7 @@ class WalletRepository internal constructor(
 ) {
     private val mutex = Mutex()
     private val _state = MutableStateFlow(WalletState.EMPTY)
+    private val _history = MutableStateFlow<List<LedgerEvent>>(emptyList())
     private var loaded = false
 
     /** Ledger status of every payment id ever detected. Guarded by [mutex]; derived from the same events as [state]. */
@@ -72,6 +73,16 @@ class WalletRepository internal constructor(
      * first call to [load] or to any mutation; call [load] at app start to avoid showing an empty wallet.
      */
     val state: StateFlow<WalletState> = _state.asStateFlow()
+
+    // NOTE(T5b): the ledger tab needs the events themselves (timestamps, allowances, exchanges, expired hands), not
+    // only their fold. The list is filled on [load] and appended after every successful mutation under the same
+    // [mutex], so it always equals `store.loadAll()` in append order. Kept in memory like [state]; when snapshots
+    // arrive (see ensureLoaded), this should become a paged query instead.
+    /**
+     * Every stored ledger event in append order (oldest first). Empty until the ledger has been loaded, exactly
+     * like [state]; [state] is always the fold of this list.
+     */
+    val history: StateFlow<List<LedgerEvent>> = _history.asStateFlow()
 
     /** Loads and folds the ledger if that has not happened yet; returns the current state. Idempotent. */
     suspend fun load(): WalletState = mutex.withLock { ensureLoaded() }
@@ -225,6 +236,7 @@ class WalletRepository internal constructor(
             // NOTE(T-later): load the latest state snapshot here and fold only the events stored after it.
             val events = store.loadAll()
             _state.value = events.fold()
+            _history.value = events
             paymentStatus.clear()
             events.forEach(::track)
             loaded = true
@@ -240,6 +252,7 @@ class WalletRepository internal constructor(
         for (event in mutation.events) next = WalletReducer.reduce(next, event)
         store.append(mutation.events)
         _state.value = next
+        if (mutation.events.isNotEmpty()) _history.value = _history.value + mutation.events
         mutation.events.forEach(::track)
         mutation.result
     }

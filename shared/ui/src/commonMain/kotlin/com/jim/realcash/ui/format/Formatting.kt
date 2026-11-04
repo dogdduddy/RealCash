@@ -106,3 +106,10 @@ fun sourceAppLabel(packageName: String): String = when (packageName) {
 
 /** Parser confidence as a percentage: `0.85` -> `85%`. */
 fun formatConfidence(confidence: Float): String = "${(confidence * 100).toInt().coerceIn(0, 100)}%"
+
+/** Counts as `50,000×1 + 10,000×2` (largest first, zero counts skipped); empty string for no counts. */
+fun splitSummary(counts: Map<Denomination, Int>): String =
+    Denomination.descending.filter { (counts[it] ?: 0) > 0 }.joinToString(" + ") { "${it.faceLabel}×${counts.getValue(it)}" }
+
+/** `50,000×1 → 10,000×5`. */
+fun exchangeSummary(from: Map<Denomination, Int>, to: Map<Denomination, Int>): String = "${splitSummary(from)} → ${splitSummary(to)}"

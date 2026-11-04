@@ -107,4 +107,14 @@ class FormattingTest {
         assertEquals("100%", formatConfidence(1f))
         assertEquals("0%", formatConfidence(-0.1f))
     }
+
+    @Test
+    fun splitSummaries() {
+        val from = mapOf(Denomination.W50000 to 1)
+        val to = mapOf(Denomination.W5000 to 2, Denomination.W10000 to 4, Denomination.C100 to 0)
+        assertEquals("50,000×1", splitSummary(from))
+        assertEquals("10,000×4 + 5,000×2", splitSummary(to), "largest first, zero counts skipped")
+        assertEquals("", splitSummary(emptyMap()))
+        assertEquals("50,000×1 → 10,000×4 + 5,000×2", exchangeSummary(from, to))
+    }
 }

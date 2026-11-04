@@ -8,7 +8,11 @@ import androidx.compose.runtime.setValue
 import com.jim.realcash.data.RealCashData
 import com.jim.realcash.ui.allowance.ReceiveAllowanceModel
 import com.jim.realcash.ui.confirm.ConfirmPaymentsModel
+import com.jim.realcash.ui.exchange.ExchangeModel
+import com.jim.realcash.ui.ledger.LedgerModel
+import com.jim.realcash.ui.settings.SettingsModel
 import com.jim.realcash.ui.simulator.NotificationSimulatorModel
+import com.jim.realcash.ui.takeout.TakeOutModel
 import com.jim.realcash.ui.wallet.WalletHomeModel
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Clock
@@ -31,10 +35,10 @@ enum class Tab(
     /** Wallet home. */
     WALLET(Strings.TAB_WALLET),
 
-    /** Ledger / review (T5b). */
+    /** Ledger / period review. */
     LEDGER(Strings.TAB_LEDGER),
 
-    /** Settings (T5b) with the debug section. */
+    /** Settings with the debug section. */
     SETTINGS(Strings.TAB_SETTINGS),
 }
 
@@ -54,6 +58,16 @@ sealed interface Screen {
 
     /** Debug notification simulator (screen 4). */
     data object NotificationSimulator : Screen
+
+    /**
+     * Take cash out into the hand (꺼내기).
+     *
+     * @property refill "더 꺼내기": start from the current hand's units (see [com.jim.realcash.ui.takeout.TakeOutModel]).
+     */
+    data class TakeOut(val refill: Boolean = false) : Screen
+
+    /** Exchange wallet units (환전). */
+    data object Exchange : Screen
 }
 
 /** Root screen of [tab]. */
@@ -148,11 +162,32 @@ class AppState(
     /** Notification simulator model; kept across visits so the last result stays visible. */
     val simulator: NotificationSimulatorModel by lazy { NotificationSimulatorModel(scope, env) }
 
+    /** Ledger tab model (created on first use). */
+    val ledger: LedgerModel by lazy { LedgerModel(scope, env) }
+
+    /** Settings tab model (created on first use). */
+    val settings: SettingsModel by lazy { SettingsModel(scope, env) }
+
     private var allowanceModel: ReceiveAllowanceModel? = null
+    private var takeOutModel: TakeOutModel? = null
+    private var exchangeModel: ExchangeModel? = null
 
     /** Allowance model; a fresh draft every time the screen is opened. */
     val receiveAllowance: ReceiveAllowanceModel
         get() = allowanceModel ?: ReceiveAllowanceModel(scope, env, onDone = ::back).also { allowanceModel = it }
+
+    /** 꺼내기 model; a fresh draft every time the screen is opened (refill mode from the [Screen.TakeOut] on top). */
+    val takeOut: TakeOutModel
+        get() = takeOutModel ?: TakeOutModel(
+            scope,
+            env,
+            refill = (backStack.lastOrNull { it is Screen.TakeOut } as? Screen.TakeOut)?.refill ?: false,
+            onDone = ::back,
+        ).also { takeOutModel = it }
+
+    /** 환전 model; a fresh draft every time the screen is opened. */
+    val exchange: ExchangeModel
+        get() = exchangeModel ?: ExchangeModel(scope, env, onDone = ::back).also { exchangeModel = it }
 
     private var started = false
 
@@ -175,7 +210,7 @@ class AppState(
 
     /** Pushes [screen]. */
     fun navigate(screen: Screen) {
-        if (screen == Screen.ReceiveAllowance) allowanceModel = null
+        resetModelOf(screen)
         backStack.add(screen)
     }
 
@@ -183,8 +218,18 @@ class AppState(
     fun back(): Boolean {
         if (backStack.size <= 1) return false
         val popped = backStack.removeAt(backStack.lastIndex)
-        if (popped == Screen.ReceiveAllowance) allowanceModel = null
+        resetModelOf(popped)
         return true
+    }
+
+    /** Drops the per-visit model of [screen] so that the next visit starts from a fresh draft. */
+    private fun resetModelOf(screen: Screen) {
+        when (screen) {
+            Screen.ReceiveAllowance -> allowanceModel = null
+            is Screen.TakeOut -> takeOutModel = null
+            Screen.Exchange -> exchangeModel = null
+            else -> Unit
+        }
     }
 
     /** Opens the payment confirmation sheet. */

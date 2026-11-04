@@ -8,14 +8,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -24,28 +20,20 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.jim.realcash.domain.calc.SplitStyle
 import com.jim.realcash.domain.model.Denomination
 import com.jim.realcash.domain.model.Won
 import com.jim.realcash.ui.Strings
+import com.jim.realcash.ui.components.DenominationStepperRow
 import com.jim.realcash.ui.components.ScreenHeader
 import com.jim.realcash.ui.components.SectionLabel
 import com.jim.realcash.ui.format.ThousandsSeparatorTransformation
-import com.jim.realcash.ui.format.faceLabel
 import com.jim.realcash.ui.format.formatted
 import com.jim.realcash.ui.format.shortLabel
-import com.jim.realcash.ui.money.BILL_ASPECT
-import com.jim.realcash.ui.money.BillFace
-import com.jim.realcash.ui.money.CoinFace
-import com.jim.realcash.ui.money.LocalMoneyArt
 import kotlin.math.abs
 import kotlinx.datetime.LocalDate
 
@@ -114,7 +102,7 @@ fun ReceiveAllowanceContent(
             Column {
                 Denomination.descending.forEachIndexed { i, d ->
                     if (i > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                    StepperRow(d, draft.countOf(d), onIncrement, onDecrement)
+                    DenominationStepperRow(d, draft.countOf(d), onIncrement, onDecrement)
                 }
             }
             SumLine(draft)
@@ -140,52 +128,6 @@ private fun StyleChip(label: String, style: SplitStyle, draft: AllowanceDraft, o
         onClick = { onStyle(style) },
         label = { Text(label) },
     )
-}
-
-@Composable
-private fun StepperRow(
-    d: Denomination,
-    count: Int,
-    onIncrement: (Denomination) -> Unit,
-    onDecrement: (Denomination) -> Unit,
-) {
-    val art = LocalMoneyArt.current
-    val faceLabel = "${d.faceLabel}원"
-    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        if (d.kind == Denomination.Kind.BILL) {
-            BillFace(d, Modifier.size(width = 52.dp, height = (52 / BILL_ASPECT).dp), art.painter(d))
-        } else {
-            Row(Modifier.width(52.dp), horizontalArrangement = Arrangement.Center) {
-                CoinFace(d, Modifier.size(24.dp), art.painter(d))
-            }
-        }
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(faceLabel, style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium))
-            if (count > 0) {
-                Text(
-                    (d.amount * count).formatted(),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-        FilledTonalIconButton(
-            onClick = { onDecrement(d) },
-            enabled = count > 0,
-            modifier = Modifier.size(36.dp).semantics { contentDescription = "$faceLabel 빼기" },
-        ) { Text("−", style = MaterialTheme.typography.titleMedium) }
-        Text(
-            count.toString(),
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-            textAlign = TextAlign.Center,
-            modifier = Modifier.widthIn(min = 40.dp),
-        )
-        FilledTonalIconButton(
-            onClick = { onIncrement(d) },
-            modifier = Modifier.size(36.dp).semantics { contentDescription = "$faceLabel 더하기" },
-        ) { Text("+", style = MaterialTheme.typography.titleMedium) }
-    }
 }
 
 @Composable

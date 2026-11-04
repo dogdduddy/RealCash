@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -58,6 +59,9 @@ private val SettlementCardDuration = 6.seconds
  *
  * @param onReceiveAllowance opens the allowance screen.
  * @param onOpenPending opens the payment confirmation sheet.
+ * @param onTakeOut opens 꺼내기 (no active hand).
+ * @param onTakeMore opens 꺼내기 pre-filled with the active hand ("더 꺼내기").
+ * @param onExchange opens 환전.
  * @param onOpenSimulator opens the notification simulator; the shortcut is shown only when non-null (desktop).
  */
 @Composable
@@ -65,6 +69,9 @@ fun WalletHomeScreen(
     model: WalletHomeModel,
     onReceiveAllowance: () -> Unit,
     onOpenPending: () -> Unit,
+    onTakeOut: () -> Unit = {},
+    onTakeMore: () -> Unit = {},
+    onExchange: () -> Unit = {},
     onOpenSimulator: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
@@ -73,6 +80,9 @@ fun WalletHomeScreen(
         ui = ui,
         onReceiveAllowance = onReceiveAllowance,
         onOpenPending = onOpenPending,
+        onTakeOut = onTakeOut,
+        onTakeMore = onTakeMore,
+        onExchange = onExchange,
         onReturnHand = model::returnHand,
         onDismissSettlement = { model.dismissSettlement(it.paymentId) },
         onOpenSimulator = onOpenSimulator,
@@ -90,6 +100,9 @@ fun WalletHomeContent(
     onDismissSettlement: (SettlementUi) -> Unit,
     onOpenSimulator: (() -> Unit)?,
     modifier: Modifier = Modifier,
+    onTakeOut: () -> Unit = {},
+    onTakeMore: () -> Unit = {},
+    onExchange: () -> Unit = {},
 ) {
     Box(modifier.fillMaxSize()) {
         Column(
@@ -106,8 +119,12 @@ fun WalletHomeContent(
                 SettlementCard(s, onDismiss = { onDismissSettlement(s) })
             }
             if (ui.pendingCount > 0) PendingBanner(ui.pendingCount, onOpenPending)
-            if (ui.hand != null) HandCard(ui.hand, onReturnHand) else NoHandPlaceholder()
-            SectionLabel(Strings.WALLET, trailing = ui.walletTotal.formatted())
+            if (ui.hand != null) {
+                HandCard(ui.hand, onReturn = onReturnHand, onTakeMore = onTakeMore)
+            } else {
+                NoHandCard(canTakeOut = ui.loaded && !ui.walletEmpty, onTakeOut = onTakeOut)
+            }
+            WalletSectionHeader(ui, onExchange)
             when {
                 !ui.loaded -> Spacer(Modifier.height(120.dp))
                 ui.walletEmpty -> EmptyWallet(onReceiveAllowance)
@@ -204,7 +221,7 @@ private fun PendingBanner(count: Int, onClick: () -> Unit) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun HandCard(hand: HandUi, onReturn: () -> Unit) {
+private fun HandCard(hand: HandUi, onReturn: () -> Unit, onTakeMore: () -> Unit) {
     val art = LocalMoneyArt.current
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
@@ -243,24 +260,49 @@ private fun HandCard(hand: HandUi, onReturn: () -> Unit) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 hand.units.forEach { UnitChip(it.denomination, it.count, painter = art.painter(it.denomination)) }
             }
-            OutlinedButton(onClick = onReturn, modifier = Modifier.fillMaxWidth()) { Text(Strings.RETURN_HAND) }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                val padding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                OutlinedButton(onClick = onReturn, contentPadding = padding, modifier = Modifier.weight(1f)) {
+                    Text(Strings.RETURN_HAND, maxLines = 1)
+                }
+                Button(onClick = onTakeMore, contentPadding = padding, modifier = Modifier.weight(1f)) { Text(Strings.TAKE_MORE, maxLines = 1) }
+            }
         }
     }
 }
 
 @Composable
-private fun NoHandPlaceholder() {
+private fun NoHandCard(canTakeOut: Boolean, onTakeOut: () -> Unit) {
     Surface(
         color = MaterialTheme.colorScheme.surfaceContainer,
         contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        shape = MaterialTheme.shapes.medium,
+        shape = MaterialTheme.shapes.large,
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Text(
-            Strings.NO_HAND,
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-        )
+        Row(Modifier.padding(start = 16.dp, end = 12.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    Strings.NO_HAND,
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(Strings.NO_HAND_HINT, style = MaterialTheme.typography.bodySmall)
+            }
+            Spacer(Modifier.width(8.dp))
+            Button(onClick = onTakeOut, enabled = canTakeOut) { Text(Strings.TAKE_OUT) }
+        }
+    }
+}
+
+@Composable
+private fun WalletSectionHeader(ui: WalletHomeUi, onExchange: () -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        SectionLabel(Strings.WALLET, Modifier.weight(1f), trailing = ui.walletTotal.formatted())
+        if (ui.loaded && !ui.walletEmpty) {
+            TextButton(onClick = onExchange, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)) {
+                Text(Strings.EXCHANGE, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold))
+            }
+        }
     }
 }
 
