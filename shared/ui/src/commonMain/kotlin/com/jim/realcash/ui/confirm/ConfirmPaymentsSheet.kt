@@ -2,6 +2,8 @@ package com.jim.realcash.ui.confirm
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -32,6 +34,8 @@ import com.jim.realcash.ui.Strings
 import com.jim.realcash.ui.components.FlagBadges
 import com.jim.realcash.ui.format.formatted
 import com.jim.realcash.ui.theme.LocalRealCashColors
+import com.jim.realcash.ui.money.LocalMoneyArt
+import com.jim.realcash.ui.money.UnitChip
 
 /**
  * Payment confirmation sheet (screen 3) as a Material3 modal bottom sheet.
@@ -108,6 +112,7 @@ private fun PendingCard(p: PendingPaymentUi, busy: Boolean, onConfirm: (PaymentI
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ConfirmedCard(r: ConfirmedResultUi) {
     Card(
@@ -126,6 +131,14 @@ private fun ConfirmedCard(r: ConfirmedResultUi) {
                 style = MaterialTheme.typography.bodyMedium,
                 color = LocalRealCashColors.current.positive,
             )
+            if (r.changeCounts.isNotEmpty()) {
+                val art = LocalMoneyArt.current
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    r.changeCounts.entries.sortedByDescending { it.key.won }.forEach { (denomination, count) ->
+                        UnitChip(denomination, count, painter = art.painter(denomination))
+                    }
+                }
+            }
             if (r.shortfall > Won.ZERO) {
                 Text(Strings.shortfallLine(r.shortfall.formatted()), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
             }

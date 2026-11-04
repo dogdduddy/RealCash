@@ -23,7 +23,7 @@ import androidx.compose.ui.unit.dp
 import com.jim.realcash.domain.model.Denomination
 import com.jim.realcash.ui.format.faceLabel
 import com.jim.realcash.ui.format.formatted
-import com.jim.realcash.ui.money.BILL_ASPECT
+import com.jim.realcash.ui.money.billAspectRatio
 import com.jim.realcash.ui.money.BillFace
 import com.jim.realcash.ui.money.CoinFace
 import com.jim.realcash.ui.money.LocalMoneyArt
@@ -43,7 +43,7 @@ fun DenominationStepperRow(
     val faceLabel = "${d.faceLabel}원"
     Row(modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
         if (d.kind == Denomination.Kind.BILL) {
-            BillFace(d, Modifier.size(width = 52.dp, height = (52 / BILL_ASPECT).dp), art.painter(d))
+            BillFace(d, Modifier.size(width = 52.dp, height = 52.dp / d.billAspectRatio), art.painter(d))
         } else {
             Row(Modifier.width(52.dp), horizontalArrangement = Arrangement.Center) {
                 CoinFace(d, Modifier.size(24.dp), art.painter(d))

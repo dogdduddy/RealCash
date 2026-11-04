@@ -1,6 +1,8 @@
 package com.jim.realcash.ui.confirm
 
 import com.jim.realcash.domain.ledger.WalletState
+import com.jim.realcash.domain.model.CashUnit
+import com.jim.realcash.domain.model.Denomination
 import com.jim.realcash.domain.model.DetectedPayment
 import com.jim.realcash.domain.model.PaymentId
 import com.jim.realcash.domain.model.SettlementFlag
@@ -56,6 +58,8 @@ data class ConfirmedResultUi(
     val flags: Set<SettlementFlag>,
     /** True when this was a refund put back into the wallet. */
     val isRefund: Boolean,
+    /** Actual change / refund units returned by the repository, grouped for artwork chips. */
+    val changeCounts: Map<Denomination, Int> = emptyMap(),
 )
 
 /** State of the confirmation sheet. */
@@ -122,11 +126,11 @@ class ConfirmPaymentsModel(
         runFor(id) {
             val result = if (payment.isRefund) {
                 val refunded = data.wallet.refund(payment)
-                resultOf(payment, change = refunded.units.total(), shortfall = Won.ZERO, flags = emptySet())
+                resultOf(payment, changeUnits = refunded.units, shortfall = Won.ZERO, flags = emptySet())
             } else {
                 val policy = data.settings.load().pullPolicy
                 val s = data.wallet.settle(id, policy).settlement
-                resultOf(payment, change = s.changeUnits.total(), shortfall = s.shortfall, flags = s.flags)
+                resultOf(payment, changeUnits = s.changeUnits, shortfall = s.shortfall, flags = s.flags)
             }
             confirmed.update { listOf(result) + it }
             env.haptics.success()
@@ -154,13 +158,14 @@ class ConfirmPaymentsModel(
         }
     }
 
-    private fun resultOf(p: DetectedPayment, change: Won, shortfall: Won, flags: Set<SettlementFlag>) = ConfirmedResultUi(
+    private fun resultOf(p: DetectedPayment, changeUnits: List<CashUnit>, shortfall: Won, flags: Set<SettlementFlag>) = ConfirmedResultUi(
         id = p.id,
         amount = p.amount,
         merchant = p.merchant ?: Strings.UNKNOWN_MERCHANT,
-        change = change,
+        change = changeUnits.total(),
         shortfall = shortfall,
         flags = flags,
         isRefund = p.isRefund,
+        changeCounts = changeUnits.groupingBy { it.denomination }.eachCount(),
     )
 }
