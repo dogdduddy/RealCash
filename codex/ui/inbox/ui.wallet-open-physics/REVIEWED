@@ -1,0 +1,1 @@
+PASS merged eb4f780 2026-11-04 범위 shared/ui 만(src/jvmTest 아래 1.7MB PNG는 머지 뒤 제거, 테스트는 realcash.screenshotDir로 수정), jvmTest 125 통과, 스크린샷 w 확인(만원 길게 눌러 접시 위에 떠 있음, 접시 밝아짐, 원장 미변경). 코드: 포인터 위치 graphicsLayer 지연 읽기·overTray derivedStateOf·단일 인식기·300ms 디바운스 모두 설계대로. 후속 09: pointerInput 키(enabled·sway) 재시작으로 연속 집기 끊김, submitting 중 setOnTray 유실.

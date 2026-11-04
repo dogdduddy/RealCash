@@ -37,5 +37,4 @@ Pods/
 # macOS
 .DS_Store
 
-# 스크린샷은 build/screenshots 에만 (검수용 생성물)
-shared/ui/screenshots/
+# 스크린샷 테스트 출력은 build/screenshots. shared/ui/screenshots/ 는 Codex 검수용 사본(워커 브랜치에만, 머지 때 제거)

@@ -59,7 +59,7 @@ class WalletOpenScreenshotTest {
                 assertTrue(app.walletOpen.physics.overTray)
                 assertTrue(data.wallet.state.value.inHand.isEmpty(), "holding is not a drop")
                 val png = checkNotNull(scene.render(2_900_000_000L).encodeToData(EncodedImageFormat.PNG)).bytes
-                val dir = File("src/jvmTest/kotlin/com/jim/realcash/ui/walletopen/screenshots").apply { mkdirs() }
+                val dir = File(System.getProperty("realcash.screenshotDir") ?: "build/screenshots").apply { mkdirs() }
                 val file = File(dir, "w-wallet-open-held-above-tray.png")
                 file.writeBytes(png)
                 assertTrue(file.length() > 0)
