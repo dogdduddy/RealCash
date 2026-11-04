@@ -1,0 +1,43 @@
+# XcodeGen spec for the iOS notification -> App Intent proof of concept.
+# Generate the Xcode project with:  xcodegen generate   (run in this directory)
+# The generated NotificationIntentPoC.xcodeproj is a build artifact; do not commit it.
+name: NotificationIntentPoC
+
+options:
+  bundleIdPrefix: com.jim.realcash
+  deploymentTarget:
+    iOS: "17.0"
+  developmentLanguage: ko
+  createIntermediateGroups: true
+
+settings:
+  base:
+    # Xcode only accepts 4 / 4.2 / 5.0 / 6.0 here. "5.0" = Swift 5 language mode,
+    # compiled by whatever Swift 5.9+ toolchain ships with the installed Xcode.
+    SWIFT_VERSION: "5.0"
+
+targets:
+  NotificationIntentPoC:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: Sources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.jim.realcash.poc
+        PRODUCT_NAME: NotificationIntentPoC
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        TARGETED_DEVICE_FAMILY: "1"
+        CODE_SIGN_STYLE: Automatic
+        # Fill in your own team ID (Xcode > Signing & Capabilities also works).
+        # A free personal team is enough for an on-device PoC.
+        DEVELOPMENT_TEAM: ""
+        ENABLE_PREVIEWS: YES
+        # No Info.plist file in the repo; Xcode generates one from these keys.
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: "RealCash PoC"
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
