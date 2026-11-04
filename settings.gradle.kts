@@ -14,7 +14,13 @@ dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
         mavenCentral()
-        // TODO(T3): add google() here once dl.google.com is reachable.
+        // NOTE(T5): Compose Multiplatform (1.7 and later) depends on androidx artifacts (compose runtime, collection,
+        // annotation, lifecycle, savedstate) that only Google Maven hosts, for the desktop and iOS targets too.
+        // dl.google.com answers again; the content filter keeps every other dependency on Maven Central.
+        // TODO(T3): widen the filter (com.android, com.google) for the Android app.
+        google {
+            mavenContent { includeGroupAndSubgroups("androidx") }
+        }
     }
 }
 
@@ -23,5 +29,7 @@ include(":shared:domain")
 
 // SQLDelight event store, settings, parser-rule loader and the payment-intake orchestration.
 include(":shared:data")
-// TODO(T5): include(":shared:ui")     // Compose Multiplatform screens
+
+// Compose Multiplatform app shell and screens (desktop JVM for verification, iOS).
+include(":shared:ui")
 // TODO(T3): include(":androidApp")    // Requires the Android SDK / AGP (dl.google.com access)
