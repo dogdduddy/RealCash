@@ -92,9 +92,9 @@ class ManualPaymentModelTest {
             assertEquals(Won(6_500), row.amount)
             assertEquals("동네 카페", row.merchant)
             assertEquals(setOf(SettlementFlag.MANUAL), row.flags)
-            val home = reloadedApp.walletHome.ui.value.lastSettlement
-            assertEquals("동네 카페", home?.merchant)
-            assertEquals(Won(6_500), home?.amount)
+            val home = reloadedApp.walletHome.ui.value
+            assertEquals(Won(3_500), home.balance)
+            assertEquals(Won.ZERO, home.handTotal)
             app.closeManualSheet()
             assertFalse(app.manualSheetOpen)
             app.openManualSheet()

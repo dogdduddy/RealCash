@@ -9,12 +9,20 @@ import com.jim.realcash.domain.model.SettlementFlag
 object Strings {
     const val APP_NAME = "RealCash"
 
-    // Tabs
+    // Navigation
     const val TAB_WALLET = "지갑"
     const val TAB_LEDGER = "가계부"
     const val TAB_SETTINGS = "설정"
 
     // Wallet home
+    const val HOME_MENU = "메뉴"
+    const val OPEN_WALLET = "지갑 열기"
+    const val REMAINING = "남음"
+    const val ADD_ALLOWANCE = "용돈 넣기"
+    const val WALLET_OPEN_LAYOUT = "T: wallet-open-layout"
+    fun settlementSnackbar(amount: String?): String = if (amount == null) "정산 완료" else "$amount 정산 완료"
+    fun pendingBadge(count: Int): String = "확인 $count"
+    fun handBadge(amount: String): String = "손에 $amount"
     const val THIS_WEEK = "이번 주"
     const val THIS_MONTH = "이번 달"
     const val BALANCE = "가진 돈"

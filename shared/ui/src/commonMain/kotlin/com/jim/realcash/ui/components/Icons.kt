@@ -17,7 +17,7 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 /** The few glyphs the shell needs. Drawn on a Canvas to avoid pulling in an icon library. */
-enum class RcIcon { WALLET, LEDGER, SETTINGS, BACK, CLOSE }
+enum class RcIcon { WALLET, LEDGER, SETTINGS, BACK, CLOSE, MORE }
 
 /**
  * Draws [icon] as a 24dp line glyph in [tint] (the current content color by default).
@@ -29,6 +29,9 @@ fun RcIconGlyph(icon: RcIcon, modifier: Modifier = Modifier, tint: Color = Local
         val s = size.minDimension
         val stroke = Stroke(width = s * 0.085f, cap = StrokeCap.Round)
         when (icon) {
+            RcIcon.MORE -> {
+                for (x in listOf(0.22f, 0.5f, 0.78f)) drawCircle(tint, radius = s * 0.065f, center = Offset(s * x, s * 0.5f))
+            }
             RcIcon.WALLET -> {
                 drawRoundRect(tint, Offset(s * 0.12f, s * 0.25f), Size(s * 0.76f, s * 0.56f), CornerRadius(s * 0.1f), style = stroke)
                 drawLine(tint, Offset(s * 0.2f, s * 0.25f), Offset(s * 0.68f, s * 0.12f), stroke.width, StrokeCap.Round)

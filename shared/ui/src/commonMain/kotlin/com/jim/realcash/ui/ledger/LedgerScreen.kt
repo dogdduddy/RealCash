@@ -48,16 +48,16 @@ import kotlinx.datetime.TimeZone
 
 /** 가계부 tab (screen 6): the period review header and the ledger grouped by day, newest first. */
 @Composable
-fun LedgerScreen(model: LedgerModel, timeZone: TimeZone, modifier: Modifier = Modifier) {
+fun LedgerScreen(model: LedgerModel, timeZone: TimeZone, modifier: Modifier = Modifier, onBack: (() -> Unit)? = null) {
     val ui by model.ui.collectAsState()
-    LedgerContent(ui, timeZone, modifier)
+    LedgerContent(ui, timeZone, modifier, onBack)
 }
 
 /** Stateless body of [LedgerScreen]. */
 @Composable
-fun LedgerContent(ui: LedgerUi, timeZone: TimeZone, modifier: Modifier = Modifier) {
+fun LedgerContent(ui: LedgerUi, timeZone: TimeZone, modifier: Modifier = Modifier, onBack: (() -> Unit)? = null) {
     Column(modifier.fillMaxSize()) {
-        ScreenHeader(Strings.LEDGER_TITLE)
+        ScreenHeader(Strings.LEDGER_TITLE, onBack)
         LazyColumn(
             Modifier.fillMaxSize(),
             contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp),

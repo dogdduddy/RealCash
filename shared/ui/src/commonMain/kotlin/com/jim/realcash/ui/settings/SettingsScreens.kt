@@ -67,12 +67,13 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     platformEntries: List<DebugEntry> = emptyList(),
     onOpenPlatformEntry: (Int) -> Unit = {},
+    onBack: (() -> Unit)? = null,
 ) {
     val ui by model.ui.collectAsState()
     val packageText by model.packageText.collectAsState()
     val packageError by model.packageError.collectAsState()
     Column(modifier.fillMaxSize()) {
-        ScreenHeader(Strings.SETTINGS_TITLE)
+        ScreenHeader(Strings.SETTINGS_TITLE, onBack)
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
