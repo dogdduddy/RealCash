@@ -6,16 +6,21 @@ plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.sqldelight)
+    alias(libs.plugins.android.library)
 }
 
 kotlin {
     jvm {
         compilerOptions {
-            // Same bytecode target as :shared:domain so the future Android app can consume it.
+            // Same bytecode target as :shared:domain so the Android app can consume it.
             jvmTarget.set(JvmTarget.JVM_17)
         }
     }
-    // TODO(T3): add androidTarget() (AndroidSqliteDriver actual) once the Android SDK / AGP can be resolved.
+    androidTarget {
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_17)
+        }
+    }
     iosArm64()
     iosSimulatorArm64()
 
@@ -39,6 +44,9 @@ kotlin {
         jvmMain.dependencies {
             implementation(libs.sqldelight.sqlite.driver)
         }
+        androidMain.dependencies {
+            implementation(libs.sqldelight.android.driver)
+        }
         iosMain.dependencies {
             implementation(libs.sqldelight.native.driver)
         }
@@ -46,6 +54,20 @@ kotlin {
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutines.test)
         }
+    }
+}
+
+// Android library side of the KMP module (classic com.android.library + androidTarget()).
+android {
+    namespace = "com.jim.realcash.data"
+    compileSdk = libs.versions.android.compileSdk.get().toInt()
+    buildToolsVersion = libs.versions.android.buildTools.get()
+    defaultConfig {
+        minSdk = libs.versions.android.minSdk.get().toInt()
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 }
 

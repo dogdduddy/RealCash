@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Adaptive-icon foreground (108dp canvas, 72dp safe zone): two stacked stylised bills. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFCDE9DF"
+        android:pathData="M34,38h44a4,4 0,0 1,4 4v22a4,4 0,0 1,-4 4H34a4,4 0,0 1,-4 -4V42a4,4 0,0 1,4 -4z" />
+    <path
+        android:fillColor="#FFFAF6EC"
+        android:pathData="M28,44h46a4,4 0,0 1,4 4v22a4,4 0,0 1,-4 4H28a4,4 0,0 1,-4 -4V48a4,4 0,0 1,4 -4z" />
+    <path
+        android:fillColor="#FF2E7D6B"
+        android:pathData="M51,52a7,7 0,1 1,0 14a7,7 0,1 1,0 -14z" />
+    <path
+        android:fillColor="#FFA9741C"
+        android:pathData="M30,50h6v4h-6zM66,64h6v4h-6z" />
+</vector>

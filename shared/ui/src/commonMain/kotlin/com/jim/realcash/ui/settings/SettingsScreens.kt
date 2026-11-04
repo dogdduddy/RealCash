@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.jim.realcash.ui.DebugEntry
 import com.jim.realcash.ui.Strings
 import com.jim.realcash.ui.components.PlaceholderBody
 import com.jim.realcash.ui.components.SectionLabel
@@ -28,9 +29,16 @@ fun LedgerPlaceholderScreen(modifier: Modifier = Modifier) {
  * 설정 tab: a T5b placeholder plus the "디버그" section with the notification simulator.
  *
  * @param onOpenSimulator opens the notification simulator.
+ * @param platformEntries platform-only debug screens, listed after the simulator (see [DebugEntry]).
+ * @param onOpenPlatformEntry opens `platformEntries[index]`.
  */
 @Composable
-fun SettingsPlaceholderScreen(onOpenSimulator: () -> Unit, modifier: Modifier = Modifier) {
+fun SettingsPlaceholderScreen(
+    onOpenSimulator: () -> Unit,
+    modifier: Modifier = Modifier,
+    platformEntries: List<DebugEntry> = emptyList(),
+    onOpenPlatformEntry: (Int) -> Unit = {},
+) {
     PlaceholderBody(Strings.SETTINGS_TITLE, Strings.PLACEHOLDER_NOTE, modifier) {
         Spacer(Modifier.height(24.dp))
         SectionLabel(Strings.DEBUG_SECTION)
@@ -48,6 +56,26 @@ fun SettingsPlaceholderScreen(onOpenSimulator: () -> Unit, modifier: Modifier = 
                 )
                 Spacer(Modifier.height(10.dp))
                 OutlinedButton(onClick = onOpenSimulator) { Text(Strings.SIMULATOR_SHORTCUT) }
+            }
+        }
+        // NOTE(T3): platform entries (Android: 알림 접근, 알림 샘플 수집), one card each, same look as the simulator card.
+        platformEntries.forEachIndexed { index, entry ->
+            Spacer(Modifier.height(8.dp))
+            Card(
+                onClick = { onOpenPlatformEntry(index) },
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(Modifier.padding(16.dp)) {
+                    Text(entry.title, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold))
+                    if (entry.description != null) {
+                        Text(
+                            entry.description,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
             }
         }
     }

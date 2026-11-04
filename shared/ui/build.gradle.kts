@@ -1,15 +1,21 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 // Compose Multiplatform app shell and screens on top of :shared:data.
-// Targets: desktop JVM (verification on this host: compile, unit tests, offscreen screenshots) and iOS.
-// TODO(T3): add androidTarget() once the Android SDK / AGP can be resolved.
+// Targets: Android (hosted by :androidApp), desktop JVM (verification on this host: compile, unit tests,
+// offscreen screenshots) and iOS.
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.compose.multiplatform)
     alias(libs.plugins.compose.compiler)
+    alias(libs.plugins.android.library)
 }
 
 kotlin {
+    androidTarget {
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_17)
+        }
+    }
     jvm {
         compilerOptions {
             jvmTarget.set(JvmTarget.JVM_17)
@@ -29,6 +35,8 @@ kotlin {
             implementation(libs.compose.foundation)
             implementation(libs.compose.ui)
             implementation(libs.compose.material3)
+            // NOTE(T3): RealCashRoot maps the platform back event (Android back button / gesture) to the back stack.
+            implementation(libs.compose.ui.backhandler)
         }
         jvmMain.dependencies {
             // Skiko runtime + desktop window APIs for the host OS.
@@ -40,6 +48,20 @@ kotlin {
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutines.test)
         }
+    }
+}
+
+// Android library side of the KMP module (classic com.android.library + androidTarget()).
+android {
+    namespace = "com.jim.realcash.ui"
+    compileSdk = libs.versions.android.compileSdk.get().toInt()
+    buildToolsVersion = libs.versions.android.buildTools.get()
+    defaultConfig {
+        minSdk = libs.versions.android.minSdk.get().toInt()
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 }
 

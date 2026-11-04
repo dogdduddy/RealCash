@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">RealCash</string>
+    <!-- Shown in the system's notification access list. -->
+    <string name="listener_label">RealCash 결제 알림 정산</string>
+</resources>
