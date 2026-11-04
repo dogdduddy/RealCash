@@ -1,0 +1,6 @@
+31137d30bdb1c918622570d3c801ca03f248bb9a [codex-ui] ui.wallet-open-widths: 포켓 지폐를 같은 폭·권종별 길이로, 숫자가 보이게, 장수에 비례한 자리 배분으로
+
+ .../jim/realcash/ui/walletopen/WalletOpenLayout.kt | 51 ++++++++++++++-------
+ .../jim/realcash/ui/walletopen/WalletOpenScreen.kt | 12 ++++-
+ .../realcash/ui/walletopen/WalletOpenLayoutTest.kt | 53 +++++++++++++++++-----
+ 3 files changed, 87 insertions(+), 29 deletions(-)
