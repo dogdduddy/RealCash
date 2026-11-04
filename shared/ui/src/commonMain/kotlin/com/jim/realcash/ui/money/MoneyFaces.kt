@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -75,9 +76,9 @@ val Denomination.relativeSize: Float
     get() = when (this) {
         Denomination.W50000, Denomination.W10000, Denomination.W5000, Denomination.W1000 -> billAspectRatio / BILL_ASPECT
         Denomination.C500 -> 1f
-        Denomination.C100 -> 0.91f
-        Denomination.C50 -> 0.82f
-        Denomination.C10 -> 0.68f
+        Denomination.C100 -> 24f / 26.5f
+        Denomination.C50 -> 21.6f / 26.5f
+        Denomination.C10 -> 18f / 26.5f
     }
 
 /** Width / height ratio of the largest bill (154 × 68 mm). */
@@ -221,13 +222,19 @@ fun CoinFace(denomination: Denomination, modifier: Modifier = Modifier, painter:
     val label = "${denomination.faceLabel}원"
     BoxWithConstraints(
         modifier = modifier
-            .shadow(1.5.dp, CircleShape)
+            .shadow(4.dp, CircleShape)
             .clip(CircleShape)
             .semantics { contentDescription = label },
         contentAlignment = Alignment.Center,
     ) {
         if (painter != null) {
-            Image(painter, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            Image(
+                painter,
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                alpha = if (MaterialTheme.colorScheme.background.luminance() < 0.5f) 0.92f else 1f,
+                modifier = Modifier.fillMaxSize(),
+            )
         } else {
             val d = minOf(maxWidth, maxHeight)
             Canvas(Modifier.fillMaxSize()) {
@@ -296,7 +303,7 @@ fun BillStack(
 }
 
 /**
- * A stack of [count] coins of one denomination: the front coin plus up to three back layers stacked upwards,
+ * A stack of [count] coins of one denomination: the front coin plus up to three darker back layers below it,
  * and a count badge.
  *
  * @param size diameter of the largest coin (500원); smaller coins scale by [Denomination.relativeSize].
@@ -316,9 +323,16 @@ fun CoinStack(
     Box(modifier.size(width = size + 10.dp, height = size + reserve + 6.dp), contentAlignment = Alignment.BottomCenter) {
         repeat(backLayers) { i ->
             val depth = backLayers - i
-            CoinFace(denomination, Modifier.size(d).offset(y = -LayerStep * depth).alpha(0.8f), painter)
+            CoinFace(
+                denomination,
+                Modifier.size(d).offset(y = -reserve + LayerStep * depth).drawWithContent {
+                    drawContent()
+                    drawCircle(Color.Black.copy(alpha = 0.18f), radius = this.size.minDimension / 2f)
+                },
+                painter,
+            )
         }
-        val front = Modifier.size(d)
+        val front = Modifier.size(d).offset(y = -reserve)
         CoinFace(denomination, if (onClick != null) front.clickable(onClick = onClick) else front, painter)
         CountBadge(count, Modifier.align(Alignment.TopEnd))
     }

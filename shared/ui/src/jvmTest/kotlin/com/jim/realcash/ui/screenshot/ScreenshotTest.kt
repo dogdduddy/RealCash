@@ -9,6 +9,8 @@ import com.jim.realcash.data.RealCashData
 import com.jim.realcash.data.db.DriverFactory
 import com.jim.realcash.domain.model.Denomination.C100
 import com.jim.realcash.domain.model.Denomination.C500
+import com.jim.realcash.domain.model.Denomination.C50
+import com.jim.realcash.domain.model.Denomination.C10
 import com.jim.realcash.domain.model.Denomination.W1000
 import com.jim.realcash.domain.model.Denomination.W10000
 import com.jim.realcash.domain.model.Denomination.W5000
@@ -117,7 +119,8 @@ class ScreenshotTest {
             seedPending()
         }
         val app = newAppState(data)
-        render("c-wallet-hand-pending") { RealCashRoot(app, showDebugShortcut = true) }
+        // Include the coin row below the pending banner and the hand card.
+        render("c-wallet-hand-pending", height = 1000) { RealCashRoot(app, showDebugShortcut = true) }
     }
 
     @Test
@@ -237,10 +240,10 @@ class ScreenshotTest {
     @Test
     fun m_walletHomeAllBills() = runBlocking {
         val data = newData().apply {
-            wallet.receiveAllowance(mapOf(W50000 to 4, W10000 to 3, W5000 to 2, W1000 to 1), periodStart)
+            wallet.receiveAllowance(mapOf(W50000 to 4, W10000 to 3, W5000 to 2, W1000 to 1, C500 to 3, C100 to 4, C50 to 2, C10 to 5), periodStart)
         }
         val app = newAppState(data)
-        assertEquals(setOf(W50000, W10000, W5000, W1000), data.wallet.state.value.inWallet.map { it.denomination }.toSet())
+        assertEquals(Denomination.entries.toSet(), data.wallet.state.value.inWallet.map { it.denomination }.toSet())
         render("m-wallet-all-bills") { RealCashRoot(app) }
     }
 
@@ -257,6 +260,42 @@ class ScreenshotTest {
         app.confirmPayments.reject(PaymentId("pay-2"))
         assertEquals(mapOf(W10000 to 1, C100 to 2), app.confirmPayments.ui.value.confirmed.single().changeCounts)
         render("n-confirmed-change") { RealCashRoot(app) }
+    }
+
+    @Test
+    fun o_walletHomeAllCoins() = runBlocking {
+        val data = newData().apply {
+            wallet.receiveAllowance(mapOf(C500 to 3, C100 to 4, C50 to 2, C10 to 5), periodStart)
+        }
+        val app = newAppState(data)
+        assertEquals(
+            mapOf(C500 to 3, C100 to 4, C50 to 2, C10 to 5),
+            data.wallet.state.value.inWallet.groupingBy { it.denomination }.eachCount(),
+        )
+        render("o-wallet-all-coins") { RealCashRoot(app) }
+    }
+
+    @Test
+    fun p_takeOutMidCoinDrag() = runBlocking {
+        val data = newData().apply { seedAllowance() }
+        val app = newAppState(data)
+        app.navigate(Screen.TakeOut(refill = false))
+        app.takeOut.tapAdd(C100) // Also exercise the 20dp coin chip in the hand zone.
+        render("p-takeout-coin-dragging", midway = {
+            val zone = checkNotNull(app.takeOut.drag.zoneBounds)
+            app.takeOut.drag.start(C500, zone.center + Offset(zone.width * 0.18f, 0f))
+            Snapshot.sendApplyNotifications()
+        }) { RealCashRoot(app) }
+        assertTrue(app.takeOut.drag.isOverZone)
+    }
+
+    @Test
+    fun q_walletHomeAllCoinsDark() = runBlocking {
+        val data = newData().apply {
+            wallet.receiveAllowance(mapOf(C500 to 3, C100 to 4, C50 to 2, C10 to 5), periodStart)
+        }
+        val app = newAppState(data)
+        render("q-wallet-all-coins-dark", dark = true) { RealCashRoot(app) }
     }
 
     private fun render(
