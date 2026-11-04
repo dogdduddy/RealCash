@@ -12,6 +12,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -25,6 +26,8 @@ import com.jim.realcash.ui.components.RcIconGlyph
 import com.jim.realcash.ui.confirm.ConfirmPaymentsSheet
 import com.jim.realcash.ui.exchange.ExchangeScreen
 import com.jim.realcash.ui.ledger.LedgerScreen
+import com.jim.realcash.ui.money.LocalMoneyArt
+import com.jim.realcash.ui.money.ResourceMoneyArt
 import com.jim.realcash.ui.settings.SettingsScreen
 import com.jim.realcash.ui.simulator.NotificationSimulatorScreen
 import com.jim.realcash.ui.takeout.TakeOutScreen
@@ -103,49 +106,51 @@ fun RealCashRoot(
     // NOTE(T3): the platform back event (Android back button / gesture) pops the hand-rolled back stack; at a tab root
     // it is not consumed, so the system handles it. No-op where the platform sends no back events (desktop window).
     BackHandler(enabled = appState.canGoBack) { appState.back() }
-    Scaffold(
-        modifier = modifier,
-        containerColor = MaterialTheme.colorScheme.background,
-        snackbarHost = { SnackbarHost(appState.snackbarHostState) },
-        bottomBar = { if (!appState.canGoBack) BottomBar(appState) },
-    ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding)) {
-            when (val screen = appState.current) {
-                Screen.WalletHome -> WalletHomeScreen(
-                    model = appState.walletHome,
-                    onReceiveAllowance = { appState.navigate(Screen.ReceiveAllowance) },
-                    onOpenPending = appState::openConfirmSheet,
-                    onTakeOut = { appState.navigate(Screen.TakeOut(refill = false)) },
-                    onTakeMore = { appState.navigate(Screen.TakeOut(refill = true)) },
-                    onExchange = { appState.navigate(Screen.Exchange) },
-                    onOpenSimulator = if (showDebugShortcut) ({ appState.navigate(Screen.NotificationSimulator) }) else null,
-                )
-                Screen.Ledger -> LedgerScreen(appState.ledger, appState.env.timeZone)
-                Screen.Settings -> SettingsScreen(
-                    model = appState.settings,
-                    onOpenSimulator = { appState.navigate(Screen.NotificationSimulator) },
-                    platformEntries = platformDebugEntries,
-                    onOpenPlatformEntry = { index -> appState.navigate(PlatformDebugScreen(index)) },
-                )
-                Screen.ReceiveAllowance -> {
-                    val model = remember { appState.receiveAllowance }
-                    ReceiveAllowanceScreen(model, onBack = { appState.back() })
+    CompositionLocalProvider(LocalMoneyArt provides ResourceMoneyArt) {
+        Scaffold(
+            modifier = modifier,
+            containerColor = MaterialTheme.colorScheme.background,
+            snackbarHost = { SnackbarHost(appState.snackbarHostState) },
+            bottomBar = { if (!appState.canGoBack) BottomBar(appState) },
+        ) { padding ->
+            Box(Modifier.fillMaxSize().padding(padding)) {
+                when (val screen = appState.current) {
+                    Screen.WalletHome -> WalletHomeScreen(
+                        model = appState.walletHome,
+                        onReceiveAllowance = { appState.navigate(Screen.ReceiveAllowance) },
+                        onOpenPending = appState::openConfirmSheet,
+                        onTakeOut = { appState.navigate(Screen.TakeOut(refill = false)) },
+                        onTakeMore = { appState.navigate(Screen.TakeOut(refill = true)) },
+                        onExchange = { appState.navigate(Screen.Exchange) },
+                        onOpenSimulator = if (showDebugShortcut) ({ appState.navigate(Screen.NotificationSimulator) }) else null,
+                    )
+                    Screen.Ledger -> LedgerScreen(appState.ledger, appState.env.timeZone)
+                    Screen.Settings -> SettingsScreen(
+                        model = appState.settings,
+                        onOpenSimulator = { appState.navigate(Screen.NotificationSimulator) },
+                        platformEntries = platformDebugEntries,
+                        onOpenPlatformEntry = { index -> appState.navigate(PlatformDebugScreen(index)) },
+                    )
+                    Screen.ReceiveAllowance -> {
+                        val model = remember { appState.receiveAllowance }
+                        ReceiveAllowanceScreen(model, onBack = { appState.back() })
+                    }
+                    Screen.NotificationSimulator -> NotificationSimulatorScreen(appState.simulator, onBack = { appState.back() })
+                    is Screen.TakeOut -> {
+                        val model = remember(screen) { appState.takeOut }
+                        TakeOutScreen(model, onBack = { appState.back() })
+                    }
+                    Screen.Exchange -> {
+                        val model = remember { appState.exchange }
+                        ExchangeScreen(model, onBack = { appState.back() })
+                    }
+                    is PlatformDebugScreen -> platformDebugEntries.getOrNull(screen.index)?.content?.invoke { appState.back() }
                 }
-                Screen.NotificationSimulator -> NotificationSimulatorScreen(appState.simulator, onBack = { appState.back() })
-                is Screen.TakeOut -> {
-                    val model = remember(screen) { appState.takeOut }
-                    TakeOutScreen(model, onBack = { appState.back() })
-                }
-                Screen.Exchange -> {
-                    val model = remember { appState.exchange }
-                    ExchangeScreen(model, onBack = { appState.back() })
-                }
-                is PlatformDebugScreen -> platformDebugEntries.getOrNull(screen.index)?.content?.invoke { appState.back() }
             }
         }
-    }
-    if (appState.confirmSheetOpen) {
-        ConfirmPaymentsSheet(appState.confirmPayments, onDismiss = appState::closeConfirmSheet)
+        if (appState.confirmSheetOpen) {
+            ConfirmPaymentsSheet(appState.confirmPayments, onDismiss = appState::closeConfirmSheet)
+        }
     }
 }
 

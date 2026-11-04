@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -39,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -59,7 +61,8 @@ import com.jim.realcash.ui.components.SectionLabel
 import com.jim.realcash.ui.format.ThousandsSeparatorTransformation
 import com.jim.realcash.ui.format.faceLabel
 import com.jim.realcash.ui.format.formatted
-import com.jim.realcash.ui.money.BILL_ASPECT
+import com.jim.realcash.ui.money.billAspectRatio
+import com.jim.realcash.ui.money.relativeSize
 import com.jim.realcash.ui.money.BillStack
 import com.jim.realcash.ui.money.CoinStack
 import com.jim.realcash.ui.money.LocalMoneyArt
@@ -375,8 +378,8 @@ private fun DragGhost(denomination: Denomination, drag: DragDropState) {
     val art = LocalMoneyArt.current
     val density = LocalDensity.current
     val isBill = denomination.kind == Denomination.Kind.BILL
-    val width = if (isBill) GhostBillWidth else GhostCoinSize
-    val height = if (isBill) GhostBillWidth / BILL_ASPECT else GhostCoinSize
+    val width = if (isBill) GhostBillWidth * denomination.relativeSize else GhostCoinSize
+    val height = if (isBill) width / denomination.billAspectRatio else GhostCoinSize
     val halfW = with(density) { width.toPx() / 2f }
     val halfH = with(density) { height.toPx() / 2f }
     MoneyFace(
@@ -388,10 +391,11 @@ private fun DragGhost(denomination: Denomination, drag: DragDropState) {
                 val o = drag.hostOrigin
                 translationX = p.x - o.x - halfW
                 translationY = p.y - o.y - halfH
-                rotationZ = -5f
+                rotationZ = -3f
                 scaleX = 1.08f
                 scaleY = 1.08f
-            },
+            }
+            .shadow(6.dp, if (isBill) RoundedCornerShape(2.dp) else CircleShape),
         art.painter(denomination),
     )
 }

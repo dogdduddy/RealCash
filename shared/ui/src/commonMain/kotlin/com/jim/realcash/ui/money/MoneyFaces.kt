@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -72,18 +73,25 @@ fun Denomination.colors(): DenominationColors = when (this) {
  */
 val Denomination.relativeSize: Float
     get() = when (this) {
-        Denomination.W50000 -> 1f
-        Denomination.W10000 -> 0.96f
-        Denomination.W5000 -> 0.92f
-        Denomination.W1000 -> 0.88f
+        Denomination.W50000, Denomination.W10000, Denomination.W5000, Denomination.W1000 -> billAspectRatio / BILL_ASPECT
         Denomination.C500 -> 1f
         Denomination.C100 -> 0.91f
         Denomination.C50 -> 0.82f
         Denomination.C10 -> 0.68f
     }
 
-/** Width / height ratio of a bill face. */
-const val BILL_ASPECT: Float = 2.15f
+/** Width / height ratio of the largest bill (154 × 68 mm). */
+const val BILL_ASPECT: Float = 154f / 68f
+
+/** Physical face ratio; coins are square. The reviewed PNGs have these proportions within pixel rounding. */
+val Denomination.billAspectRatio: Float
+    get() = when (this) {
+        Denomination.W50000 -> BILL_ASPECT
+        Denomination.W10000 -> 148f / 68f
+        Denomination.W5000 -> 142f / 68f
+        Denomination.W1000 -> 136f / 68f
+        else -> 1f
+    }
 
 private val BillCorner = 6.dp
 
@@ -105,23 +113,30 @@ fun MoneyFace(denomination: Denomination, modifier: Modifier = Modifier, painter
 }
 
 /**
- * The face of a bill. The caller decides the size (keep [BILL_ASPECT]).
+ * The face of a bill. The caller decides the size using [billAspectRatio].
  *
  * @param painter artwork from the image pipeline (design doc §5.5). When `null`, a Canvas placeholder is drawn:
  * a gradient in the denomination's color, a watermark disc, a fine inner frame and the numeral.
  */
 @Composable
 fun BillFace(denomination: Denomination, modifier: Modifier = Modifier, painter: Painter? = null) {
-    val shape = RoundedCornerShape(BillCorner)
+    val shape = RoundedCornerShape(if (painter != null) 1.dp else BillCorner)
     val label = "${denomination.faceLabel}원"
     Box(
         modifier = modifier
-            .shadow(2.dp, shape)
+            .aspectRatio(denomination.billAspectRatio)
+            .shadow(2.5.dp, shape)
             .clip(shape)
             .semantics { contentDescription = label },
     ) {
         if (painter != null) {
-            Image(painter, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            Image(
+                painter,
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                alpha = if (MaterialTheme.colorScheme.background.luminance() < 0.5f) 0.92f else 1f,
+                modifier = Modifier.fillMaxSize(),
+            )
         } else {
             BillPlaceholder(denomination)
         }
@@ -262,7 +277,7 @@ fun BillStack(
     val backLayers = (count - 1).coerceIn(0, MAX_BACK_LAYERS)
     val reserve = LayerStep * MAX_BACK_LAYERS
     Box(modifier.padding(end = reserve, bottom = reserve, top = 6.dp)) {
-        val faceModifier = Modifier.fillMaxWidth(denomination.relativeSize).aspectRatio(BILL_ASPECT)
+        val faceModifier = Modifier.fillMaxWidth(denomination.relativeSize).aspectRatio(denomination.billAspectRatio)
         repeat(backLayers) { i ->
             val depth = backLayers - i
             BillFace(
@@ -335,7 +350,7 @@ fun UnitChip(denomination: Denomination, count: Int, modifier: Modifier = Modifi
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (denomination.kind == Denomination.Kind.BILL) {
-            BillFace(denomination, Modifier.size(width = 42.dp, height = (42 / BILL_ASPECT).dp), painter)
+            BillFace(denomination, Modifier.size(width = 22.dp * denomination.billAspectRatio, height = 22.dp), painter)
         } else {
             CoinFace(denomination, Modifier.size(20.dp), painter)
         }

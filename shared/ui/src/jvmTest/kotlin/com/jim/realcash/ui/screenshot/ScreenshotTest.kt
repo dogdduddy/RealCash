@@ -234,6 +234,31 @@ class ScreenshotTest {
         render("l-settings", height = 1420) { RealCashRoot(app) }
     }
 
+    @Test
+    fun m_walletHomeAllBills() = runBlocking {
+        val data = newData().apply {
+            wallet.receiveAllowance(mapOf(W50000 to 4, W10000 to 3, W5000 to 2, W1000 to 1), periodStart)
+        }
+        val app = newAppState(data)
+        assertEquals(setOf(W50000, W10000, W5000, W1000), data.wallet.state.value.inWallet.map { it.denomination }.toSet())
+        render("m-wallet-all-bills") { RealCashRoot(app) }
+    }
+
+    @Test
+    fun n_confirmedChangeChips() = runBlocking {
+        val data = newData().apply {
+            seedAllowance()
+            seedHand(W10000, W5000)
+            seedPending()
+        }
+        val app = newAppState(data)
+        app.openConfirmSheet()
+        app.confirmPayments.confirm(PaymentId("pay-1"))
+        app.confirmPayments.reject(PaymentId("pay-2"))
+        assertEquals(mapOf(W10000 to 1, C100 to 2), app.confirmPayments.ui.value.confirmed.single().changeCounts)
+        render("n-confirmed-change") { RealCashRoot(app) }
+    }
+
     private fun render(
         name: String,
         dark: Boolean = false,
