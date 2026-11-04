@@ -4,6 +4,7 @@ import com.jim.realcash.data.AppSettings
 import com.jim.realcash.domain.model.BudgetPeriodPolicy
 import com.jim.realcash.domain.model.BudgetPeriodPolicy.Cycle.MONTHLY
 import com.jim.realcash.domain.model.BudgetPeriodPolicy.Cycle.WEEKLY
+import com.jim.realcash.domain.model.BudgetPeriodPolicy.Cycle.MONTHLY
 import com.jim.realcash.domain.model.PullPolicy
 import com.jim.realcash.domain.parser.DefaultRules
 import kotlin.test.Test
@@ -18,7 +19,7 @@ class SettingsUiTest {
     @Test
     fun defaultsMapToTheScreen() {
         val ui = SettingsUi.from(AppSettings.DEFAULT)
-        assertEquals(WEEKLY, ui.cycle)
+        assertEquals(MONTHLY, ui.cycle)
         assertEquals(1, ui.startDay)
         assertEquals(PullPolicy.LARGEST_FIRST, ui.pullPolicy)
         assertEquals(6, ui.ttlHours)

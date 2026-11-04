@@ -18,7 +18,7 @@ import kotlinx.serialization.json.Json
 /** User settings. Every field has a default; see [DEFAULT]. */
 data class AppSettings(
     /** How allowance periods are cut. Default: weekly, starting Monday. */
-    val budgetPeriodPolicy: BudgetPeriodPolicy = BudgetPeriodPolicy(BudgetPeriodPolicy.Cycle.WEEKLY, startDay = 1),
+    val budgetPeriodPolicy: BudgetPeriodPolicy = BudgetPeriodPolicy(BudgetPeriodPolicy.Cycle.MONTHLY, startDay = 1),
     /** How units are pulled from the wallet when no hand covers a payment. Default: LARGEST_FIRST. */
     val pullPolicy: PullPolicy = PullPolicy.LARGEST_FIRST,
     /** Time-to-live of a new hand. Default: 6 hours. Must be positive. */

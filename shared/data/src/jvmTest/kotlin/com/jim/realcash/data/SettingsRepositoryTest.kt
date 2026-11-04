@@ -17,7 +17,7 @@ class SettingsRepositoryTest {
     fun defaults() = runTest {
         val driver = inMemoryDriver()
         val settings = dataOf(driver).settings.load()
-        assertEquals(BudgetPeriodPolicy(BudgetPeriodPolicy.Cycle.WEEKLY, 1), settings.budgetPeriodPolicy)
+        assertEquals(BudgetPeriodPolicy(BudgetPeriodPolicy.Cycle.MONTHLY, 1), settings.budgetPeriodPolicy)
         assertEquals(PullPolicy.LARGEST_FIRST, settings.pullPolicy)
         assertEquals(6.hours, settings.handTtl)
         assertEquals(0.8f, settings.autoSettleThreshold)
