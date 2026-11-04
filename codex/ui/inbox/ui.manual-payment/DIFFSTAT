@@ -1,0 +1,18 @@
+702d83269d6a7e6d36c7a2579b40d4c1fc009742 [codex-ui] ui.manual-payment: 결제 직접 기록 시트 — 금액·가맹점 입력으로 즉시 정산
+
+ shared/ui/screenshots/p-manual-payment-sheet.png   | Bin 0 -> 105431 bytes
+ shared/ui/screenshots/q-manual-payment-result.png  | Bin 0 -> 191474 bytes
+ .../kotlin/com/jim/realcash/ui/AppState.kt         |  16 ++
+ .../kotlin/com/jim/realcash/ui/RealCashApp.kt      |   5 +
+ .../kotlin/com/jim/realcash/ui/Strings.kt          |  10 +
+ .../com/jim/realcash/ui/format/Formatting.kt       |   2 +
+ .../jim/realcash/ui/manual/ManualPaymentDraft.kt   |  30 +++
+ .../jim/realcash/ui/manual/ManualPaymentModel.kt   |  83 ++++++++
+ .../jim/realcash/ui/manual/ManualPaymentSheet.kt   | 159 +++++++++++++++
+ .../com/jim/realcash/ui/wallet/WalletHomeModel.kt  |  17 +-
+ .../com/jim/realcash/ui/wallet/WalletHomeScreen.kt |  17 +-
+ .../com/jim/realcash/ui/format/FormattingTest.kt   |   1 +
+ .../realcash/ui/manual/ManualPaymentDraftTest.kt   |  51 +++++
+ .../realcash/ui/manual/ManualPaymentModelTest.kt   | 220 +++++++++++++++++++++
+ .../jim/realcash/ui/screenshot/ScreenshotTest.kt   |  24 +++
+ 15 files changed, 624 insertions(+), 11 deletions(-)
