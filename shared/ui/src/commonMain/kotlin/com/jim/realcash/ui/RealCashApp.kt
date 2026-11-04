@@ -1,28 +1,45 @@
 package com.jim.realcash.ui
 
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.updateTransition
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.backhandler.BackHandler
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
 import com.jim.realcash.data.RealCashData
 import com.jim.realcash.ui.allowance.ReceiveAllowanceScreen
 import com.jim.realcash.ui.components.RcIcon
 import com.jim.realcash.ui.components.RcIconGlyph
+import com.jim.realcash.ui.components.ScreenHeader
 import com.jim.realcash.ui.confirm.ConfirmPaymentsSheet
 import com.jim.realcash.ui.exchange.ExchangeScreen
 import com.jim.realcash.ui.ledger.LedgerScreen
@@ -38,14 +55,14 @@ import kotlin.time.Clock
 import kotlinx.datetime.TimeZone
 
 /**
- * The RealCash app: theme, bottom bar (지갑 / 가계부 / 설정), hand-rolled navigation and the payment confirmation sheet.
+ * The RealCash app: theme, wallet menu, hand-rolled navigation and the payment confirmation sheet.
  *
  * Creates the [AppState] (and with it the screen models) in a composition-scoped coroutine scope and loads the
  * settings and the wallet ledger once.
  *
  * @param data the process-wide data graph.
  * @param haptics platform haptics.
- * @param showDebugShortcut shows a notification-simulator shortcut on the wallet home (desktop builds).
+ * @param showDebugShortcut adds a notification-simulator item to the wallet menu (desktop builds).
  * @param clock time source; override for previews and screenshots.
  * @param timeZone zone for dates and times; override for previews and screenshots.
  * @param darkTheme dark palette; follows the system by default.
@@ -104,7 +121,7 @@ fun RealCashRoot(
     LaunchedEffect(appState) {
         appState.env.messages.messages.collect { appState.snackbarHostState.showSnackbar(it) }
     }
-    // NOTE(T3): the platform back event (Android back button / gesture) pops the hand-rolled back stack; at a tab root
+    // The platform back event (Android back button / gesture) pops the back stack; at the home
     // it is not consumed, so the system handles it. No-op where the platform sends no back events (desktop window).
     BackHandler(enabled = appState.canGoBack) { appState.back() }
     CompositionLocalProvider(LocalMoneyArt provides ResourceMoneyArt) {
@@ -112,23 +129,14 @@ fun RealCashRoot(
             modifier = modifier,
             containerColor = MaterialTheme.colorScheme.background,
             snackbarHost = { SnackbarHost(appState.snackbarHostState) },
-            bottomBar = { if (!appState.canGoBack) BottomBar(appState) },
         ) { padding ->
             Box(Modifier.fillMaxSize().padding(padding)) {
                 when (val screen = appState.current) {
-                    Screen.WalletHome -> WalletHomeScreen(
-                        model = appState.walletHome,
-                        onReceiveAllowance = { appState.navigate(Screen.ReceiveAllowance) },
-                        onOpenPending = appState::openConfirmSheet,
-                        onManualPayment = appState::openManualSheet,
-                        onTakeOut = { appState.navigate(Screen.TakeOut(refill = false)) },
-                        onTakeMore = { appState.navigate(Screen.TakeOut(refill = true)) },
-                        onExchange = { appState.navigate(Screen.Exchange) },
-                        onOpenSimulator = if (showDebugShortcut) ({ appState.navigate(Screen.NotificationSimulator) }) else null,
-                    )
-                    Screen.Ledger -> LedgerScreen(appState.ledger, appState.env.timeZone)
+                    Screen.WalletHome, Screen.WalletOpen -> WalletScene(appState, showDebugShortcut)
+                    Screen.Ledger -> LedgerScreen(appState.ledger, appState.env.timeZone, onBack = { appState.back() })
                     Screen.Settings -> SettingsScreen(
                         model = appState.settings,
+                        onBack = { appState.back() },
                         onOpenSimulator = { appState.navigate(Screen.NotificationSimulator) },
                         platformEntries = platformDebugEntries,
                         onOpenPlatformEntry = { index -> appState.navigate(PlatformDebugScreen(index)) },
@@ -159,24 +167,66 @@ fun RealCashRoot(
     }
 }
 
+/** Keeps both wallet faces alive during the open/close transition. */
 @Composable
-private fun BottomBar(appState: AppState) {
-    NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainerLow) {
-        Tab.entries.forEach { tab ->
-            NavigationBarItem(
-                selected = appState.tab == tab,
-                onClick = { appState.selectTab(tab) },
-                icon = {
-                    RcIconGlyph(
-                        when (tab) {
-                            Tab.WALLET -> RcIcon.WALLET
-                            Tab.LEDGER -> RcIcon.LEDGER
-                            Tab.SETTINGS -> RcIcon.SETTINGS
-                        },
-                    )
-                },
-                label = { Text(tab.label) },
+private fun WalletScene(appState: AppState, showDebugShortcut: Boolean) {
+    val open = appState.current == Screen.WalletOpen
+    val transition = updateTransition(open, label = "wallet")
+    val opening by transition.animateFloat(
+        transitionSpec = { tween(durationMillis = if (targetState) 360 else 220) },
+        label = "wallet-opening",
+    ) { if (it) 1f else 0f }
+    Box(Modifier.fillMaxSize()) {
+        if (opening < 1f) {
+            WalletHomeScreen(
+                model = appState.walletHome,
+                onReceiveAllowance = { appState.navigate(Screen.ReceiveAllowance) },
+                onOpenPending = appState::openConfirmSheet,
+                onOpenWallet = appState::openWallet,
+                opening = opening,
+                enabled = !open,
+                modifier = Modifier.graphicsLayer { alpha = 1f - opening },
+                menu = { WalletMenu(appState, showDebugShortcut) },
             )
+        }
+        if (opening > 0f) {
+            Column(Modifier.fillMaxSize().graphicsLayer { alpha = opening }) {
+                ScreenHeader(Strings.WALLET, onBack = { if (open) appState.back() })
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceContainer,
+                    shape = MaterialTheme.shapes.extraLarge,
+                    modifier = Modifier.fillMaxWidth().padding(24.dp).height(180.dp),
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(Strings.WALLET_OPEN_LAYOUT, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** All secondary destinations live in this menu; settings retains the platform debug entries. */
+@Composable
+private fun WalletMenu(appState: AppState, showDebugShortcut: Boolean) {
+    var expanded by remember { mutableStateOf(false) }
+    fun choose(action: () -> Unit) {
+        expanded = false
+        action()
+    }
+    Box {
+        IconButton(onClick = { expanded = true }, modifier = Modifier.semantics { contentDescription = Strings.HOME_MENU }) {
+            RcIconGlyph(RcIcon.MORE)
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(text = { Text(Strings.RECEIVE_ALLOWANCE) }, onClick = { choose { appState.navigate(Screen.ReceiveAllowance) } })
+            DropdownMenuItem(text = { Text(Strings.EXCHANGE) }, onClick = { choose { appState.navigate(Screen.Exchange) } })
+            DropdownMenuItem(text = { Text(Strings.MANUAL_TITLE) }, onClick = { choose(appState::openManualSheet) })
+            DropdownMenuItem(text = { Text(Strings.TAB_LEDGER) }, onClick = { choose { appState.navigate(Screen.Ledger) } })
+            DropdownMenuItem(text = { Text(Strings.TAB_SETTINGS) }, onClick = { choose { appState.navigate(Screen.Settings) } })
+            if (showDebugShortcut) {
+                DropdownMenuItem(text = { Text(Strings.SIMULATOR_SHORTCUT) }, onClick = { choose { appState.navigate(Screen.NotificationSimulator) } })
+            }
         }
     }
 }

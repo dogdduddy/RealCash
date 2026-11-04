@@ -28,30 +28,18 @@ import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 
-/** The three bottom-bar tabs. */
-enum class Tab(
-    /** Label under the icon. */
-    val label: String,
-) {
-    /** Wallet home. */
-    WALLET(Strings.TAB_WALLET),
-
-    /** Ledger / period review. */
-    LEDGER(Strings.TAB_LEDGER),
-
-    /** Settings with the debug section. */
-    SETTINGS(Strings.TAB_SETTINGS),
-}
-
-/** Destinations of the hand-rolled navigation. Tab roots sit at the bottom of the back stack. */
+/** Destinations pushed above the wallet home in the hand-rolled navigation. */
 sealed interface Screen {
-    /** Root of [Tab.WALLET]. */
+    /** The only navigation root. */
     data object WalletHome : Screen
 
-    /** Root of [Tab.LEDGER]. */
+    /** Open wallet placeholder; the next layout task supplies its contents. */
+    data object WalletOpen : Screen
+
+    /** Ledger, opened from the wallet menu. */
     data object Ledger : Screen
 
-    /** Root of [Tab.SETTINGS]. */
+    /** Settings, opened from the wallet menu. */
     data object Settings : Screen
 
     /** Receive an allowance (screen 2). */
@@ -70,14 +58,6 @@ sealed interface Screen {
     /** Exchange wallet units (환전). */
     data object Exchange : Screen
 }
-
-/** Root screen of [tab]. */
-val Tab.root: Screen
-    get() = when (this) {
-        Tab.WALLET -> Screen.WalletHome
-        Tab.LEDGER -> Screen.Ledger
-        Tab.SETTINGS -> Screen.Settings
-    }
 
 /** One-shot user-visible messages (shown as snackbars by the root). */
 class UiMessages {
@@ -141,14 +121,10 @@ class AppState(
 
     private val backStack = mutableStateListOf<Screen>(Screen.WalletHome)
 
-    /** The selected bottom-bar tab. */
-    var tab: Tab by mutableStateOf(Tab.WALLET)
-        private set
-
     /** The screen on top of the back stack. */
     val current: Screen get() = backStack.last()
 
-    /** True when a back action would pop a screen (the bottom bar is hidden then). */
+    /** True when a back action would pop a screen above the home. */
     val canGoBack: Boolean get() = backStack.size > 1
 
     /** Whether the payment confirmation sheet (screen 3) is open. */
@@ -169,10 +145,10 @@ class AppState(
     /** Notification simulator model; kept across visits so the last result stays visible. */
     val simulator: NotificationSimulatorModel by lazy { NotificationSimulatorModel(scope, env) }
 
-    /** Ledger tab model (created on first use). */
+    /** Ledger model (created on first use). */
     val ledger: LedgerModel by lazy { LedgerModel(scope, env) }
 
-    /** Settings tab model (created on first use). */
+    /** Settings model (created on first use). */
     val settings: SettingsModel by lazy { SettingsModel(scope, env) }
 
     private var allowanceModel: ReceiveAllowanceModel? = null
@@ -208,11 +184,11 @@ class AppState(
         }
     }
 
-    /** Switches to [tab], resetting the back stack to its root. */
-    fun selectTab(tab: Tab) {
-        this.tab = tab
-        backStack.clear()
-        backStack.add(tab.root)
+    /** Opens the wallet with tactile feedback once per tap. */
+    fun openWallet() {
+        if (current != Screen.WalletHome) return
+        env.haptics.tap()
+        navigate(Screen.WalletOpen)
     }
 
     /** Pushes [screen]. */
@@ -221,7 +197,7 @@ class AppState(
         backStack.add(screen)
     }
 
-    /** Pops the top screen; returns false when already at a tab root. */
+    /** Pops the top screen; returns false when already at the home. */
     fun back(): Boolean {
         if (backStack.size <= 1) return false
         val popped = backStack.removeAt(backStack.lastIndex)

@@ -3,6 +3,7 @@ package com.jim.realcash.ui.screenshot
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.ImageComposeScene
+import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.Density
 import com.jim.realcash.data.RealCashData
@@ -28,7 +29,6 @@ import com.jim.realcash.ui.Haptics
 import com.jim.realcash.ui.RealCashRoot
 import com.jim.realcash.ui.theme.RealCashTheme
 import com.jim.realcash.ui.Screen
-import com.jim.realcash.ui.Tab
 import com.jim.realcash.ui.UiMessages
 import com.jim.realcash.ui.takeout.TakeOutFeedback
 import java.io.File
@@ -52,12 +52,12 @@ import org.jetbrains.skia.EncodedImageFormat
  * Renders every screen offscreen with [ImageComposeScene] at 390×844 logical px (density 2) over a real
  * [RealCashData] on an in-memory database, and writes PNGs to `shared/ui/build/screenshots/`.
  *
- * The clock is frozen at 2026-11-04 18:00 KST (a Wednesday; weekly period Mon 11.2 – Sun 11.8).
+ * The clock is frozen at 2026-11-04 18:00 KST (a Wednesday; monthly period 11.1 – 11.30).
  */
 class ScreenshotTest {
     private val now = Instant.parse("2026-11-04T09:00:00Z")
     private val seoul = TimeZone.of("Asia/Seoul")
-    private val periodStart = LocalDate(2026, 11, 2)
+    private val periodStart = LocalDate(2026, 11, 1)
     private val fixedClock = object : Clock {
         override fun now(): Instant = now
     }
@@ -119,8 +119,7 @@ class ScreenshotTest {
             seedPending()
         }
         val app = newAppState(data)
-        // Include the coin row below the pending banner and the hand card.
-        render("c-wallet-hand-pending", height = 1000) { RealCashRoot(app, showDebugShortcut = true) }
+        render("c-wallet-hand-pending") { RealCashRoot(app, showDebugShortcut = true) }
     }
 
     @Test
@@ -222,7 +221,7 @@ class ScreenshotTest {
             intake.onNotification(RawNotification(DefaultRules.TOSS, "토스페이", "12,000원 결제 | 김밥천국 역삼점", null, clock.now))
         }
         val app = newAppState(data)
-        app.selectTab(Tab.LEDGER)
+        app.navigate(Screen.Ledger)
         val summary = app.ledger.ui.value.summary
         assertEquals(2, summary.paymentCount)
         assertEquals(1, summary.directCount)
@@ -232,7 +231,7 @@ class ScreenshotTest {
     @Test
     fun l_settings() = runBlocking {
         val app = newAppState(newData())
-        app.selectTab(Tab.SETTINGS)
+        app.navigate(Screen.Settings)
         // Taller than a phone so the whole tab, including 감지 앱 and the 디버그 section, is visible in one image.
         render("l-settings", height = 1420) { RealCashRoot(app) }
     }
@@ -322,11 +321,47 @@ class ScreenshotTest {
         render("q-manual-payment-result") { RealCashRoot(app) }
     }
 
+    @Test
+    fun r_walletHomeThirtyBills() = runBlocking {
+        val data = newData().apply { wallet.receiveAllowance(mapOf(W10000 to 30), periodStart) }
+        val app = newAppState(data)
+        assertEquals(30, app.walletHome.ui.value.billCount)
+        assertEquals(6, app.walletHome.ui.value.sideLayers)
+        render("r-wallet-thick") { RealCashRoot(app) }
+    }
+
+    @Test
+    fun s_walletHomeMenuOpen() = runBlocking {
+        val data = newData().apply { seedAllowance() }
+        val app = newAppState(data)
+        render("s-wallet-menu", interact = { scene ->
+            val menu = Offset(354f * SCALE, 32f * SCALE)
+            scene.sendPointerEvent(PointerEventType.Press, menu)
+            scene.sendPointerEvent(PointerEventType.Release, menu)
+        }) { RealCashRoot(app) }
+    }
+
+    @Test
+    fun t_walletTapAndBack() = runBlocking {
+        val data = newData().apply { seedAllowance() }
+        val app = newAppState(data)
+        render("t-wallet-open", interact = { scene ->
+            val wallet = Offset(195f * SCALE, 480f * SCALE)
+            scene.sendPointerEvent(PointerEventType.Press, wallet)
+            scene.sendPointerEvent(PointerEventType.Release, wallet)
+        }) { RealCashRoot(app) }
+        assertEquals(Screen.WalletOpen, app.current)
+        assertTrue(app.back())
+        assertEquals(Screen.WalletHome, app.current)
+        assertTrue(!app.canGoBack)
+    }
+
     private fun render(
         name: String,
         dark: Boolean = false,
         height: Int = HEIGHT,
         midway: (() -> Unit)? = null,
+        interact: ((ImageComposeScene) -> Unit)? = null,
         content: @Composable () -> Unit,
     ) {
         val scene = ImageComposeScene(WIDTH * SCALE, height * SCALE, Density(SCALE.toFloat())) {
@@ -336,7 +371,10 @@ class ScreenshotTest {
             // Advance the frame clock so enter animations (sheet, ripples) settle before the final frame.
             var t = 0L
             repeat(40) { frame ->
-                if (frame == 20) midway?.invoke()
+                if (frame == 20) {
+                    midway?.invoke()
+                    interact?.invoke(scene)
+                }
                 scene.render(t)
                 t += FRAME_NANOS
             }
