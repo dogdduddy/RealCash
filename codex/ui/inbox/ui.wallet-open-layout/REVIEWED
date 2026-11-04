@@ -1,0 +1,1 @@
+PASS merged 2d57173 2026-11-04 범위 shared/ui 만, jvmTest 113 통과, 스크린샷 t·u·v 확인. 단 (1) 포켓 지폐가 너무 작게 축소되고 (2) 천원 5장이 여유 공간에도 배지로 뭉침 → 후속 의뢰 ui.wallet-open-scale 로 수정. 커밋된 shared/ui/screenshots PNG 는 머지에서 제거(스크린샷은 build/ 에만)
