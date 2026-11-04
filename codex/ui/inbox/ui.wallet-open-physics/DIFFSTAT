@@ -1,0 +1,13 @@
+bb95d15b0a1d9d2469a6156667e216f3ec293bf2 [codex-ui] ui.wallet-open-physics: 열린 지갑 물리 — 스와이프 흔들림, 롱프레스 집기, 접시 놓기와 복귀
+
+ .../com/jim/realcash/ui/walletopen/WalletMotion.kt | 125 ++++++++
+ .../jim/realcash/ui/walletopen/WalletOpenModel.kt  |  74 ++++-
+ .../jim/realcash/ui/walletopen/WalletOpenScreen.kt | 341 ++++++++++++---------
+ .../jim/realcash/ui/walletopen/WalletPhysics.kt    | 114 +++++++
+ .../realcash/ui/walletopen/WalletOpenModelTest.kt  |  46 ++-
+ .../ui/walletopen/WalletOpenNavigationTest.kt      |  96 ++++--
+ .../ui/walletopen/WalletOpenScreenshotTest.kt      |  44 ++-
+ .../realcash/ui/walletopen/WalletOpenSwayTest.kt   |  79 +++++
+ .../realcash/ui/walletopen/WalletPhysicsTest.kt    |  81 +++++
+ .../screenshots/w-wallet-open-held-above-tray.png  | Bin 0 -> 1741038 bytes
+ 10 files changed, 807 insertions(+), 193 deletions(-)
