@@ -23,6 +23,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.LocalDate
 
@@ -90,7 +91,7 @@ class WalletOpenModelTest {
     }
 
     @Test
-    fun replacementFailureKeepsDraftAndBackWaitsForSuccessfulRetry() = runTest {
+    fun replacementFailureRestoresRepositoryStateAndDoesNotNavigate() = runTest {
         val driver = DriverFactory().createDriver()
         try {
             val ids = FailingIds()
@@ -103,19 +104,58 @@ class WalletOpenModelTest {
             app.openWallet()
             val model = app.walletOpen
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { model.ui.collect {} }
+            val messages = mutableListOf<String>()
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { app.env.messages.messages.collect { messages += it } }
             model.toggle(five)
             ids.failAt = ids.n + 2 // return succeeds; new hand id fails
             app.back()
             runCurrent()
             assertEquals(Screen.WalletOpen, app.current)
             assertTrue(data.wallet.state.value.inHand.isEmpty())
-            assertEquals(Won(15_000), model.ui.value.handTotal)
+            assertEquals(Won.ZERO, model.ui.value.handTotal)
+            assertEquals(1, messages.size)
+            assertTrue(messages.single().contains("되돌렸어요"))
             assertFalse(model.submitting.value)
             app.back()
             runCurrent()
             assertEquals(Screen.WalletHome, app.current)
-            assertEquals(Won(15_000), data.wallet.state.value.inHand.total())
+            assertEquals(Won.ZERO, data.wallet.state.value.inHand.total())
             assertTrue(data.wallet.state.value.invariantViolations().isEmpty())
         } finally { driver.close() }
     }
+    @Test
+    fun dropsDebounceWholeTrayReplacementAndEmptyTrayReturnsHand() = runTest {
+        val driver = DriverFactory().createDriver()
+        try {
+            val data = RealCashData(driver, clock, FailingIds(), EmptyCoroutineContext)
+            data.wallet.receiveAllowance(mapOf(W10000 to 2, C500 to 1), LocalDate(2026, 11, 1))
+            val model = WalletOpenModel(backgroundScope, AppEnvironment(data, Haptics.None, clock = clock))
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { model.ui.collect {} }
+            val units = data.wallet.state.value.inWallet
+            model.setOnTray(units[0].id, true)
+            runCurrent()
+            advanceTimeBy(299)
+            assertTrue(data.wallet.state.value.inHand.isEmpty())
+            model.setOnTray(units[1].id, true)
+            runCurrent()
+            advanceTimeBy(299)
+            assertTrue(data.wallet.state.value.inHand.isEmpty())
+            advanceTimeBy(1); runCurrent()
+            assertEquals(setOf(units[0].id, units[1].id), data.wallet.state.value.activeHand?.unitIds?.toSet())
+            assertEquals(model.ui.value.inHand.map { it.id }.toSet(), data.wallet.state.value.activeHand?.unitIds?.toSet())
+            assertEquals(1, data.wallet.history.value.filterIsInstance<MovedToHand>().size)
+            model.setOnTray(units[0].id, false)
+            model.setOnTray(units[2].id, true)
+            runCurrent(); advanceTimeBy(300); runCurrent()
+            assertEquals(listOf(units[1].id, units[2].id), data.wallet.state.value.activeHand?.unitIds)
+            assertEquals(listOf(units[1].id, units[2].id), model.ui.value.inHand.map { it.id })
+            assertFalse(model.ui.value.changed)
+            model.ui.value.inHand.forEach { model.setOnTray(it.id, false) }
+            runCurrent(); advanceTimeBy(300); runCurrent()
+            assertTrue(data.wallet.state.value.activeHand == null)
+            assertTrue(model.ui.value.inHand.isEmpty())
+            assertTrue(data.wallet.state.value.invariantViolations().isEmpty())
+        } finally { driver.close() }
+    }
+
 }
