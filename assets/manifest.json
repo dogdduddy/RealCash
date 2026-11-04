@@ -1,0 +1,5 @@
+{
+  "$comment": "RealCash 에셋 목록. assets 키는 에셋 id(의뢰서 id와 같음, 예: bill.w10000.a), 값은 { path: 앱이 쓰는 정리본 경로, size: \"WxH\", status: \"draft\" | \"final\", source: \"gpt\", aiGenerated: true|false }. 검수 통과 시 Claude 세션이 draft로 추가하고, final은 사람 승인 뒤에만 붙인다. 원본은 assets/raw/, 출처 기록은 assets/LOG.md.",
+  "version": 1,
+  "assets": {}
+}

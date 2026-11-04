@@ -1,0 +1,7 @@
+# 처리 중인 의뢰는 올리지 않는다 (반쪽 결과 방지). 폴더 자리만 남긴다.
+jobs/running/*
+!jobs/running/.gitkeep
+# 의뢰서를 쓰는 중인 임시 파일
+*.tmp
+# 루트 .gitignore의 *.log 규칙이 Codex 출력을 막지 않게 다시 포함한다 (실패 원인 확인용).
+!inbox/**/*.log

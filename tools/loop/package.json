@@ -1,0 +1,25 @@
+{
+  "name": "realcash-loop-tools",
+  "private": true,
+  "type": "module",
+  "description": "이미지 검수 도구: 크로마키 제거, 크기 맞춤, 검수 시트 (RealCash 루트와 독립된 Node 패키지)",
+  "engines": {
+    "node": ">=20.9"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "chroma-key": "tsx src/chroma-key.ts",
+    "fit": "tsx src/fit.ts",
+    "review-sheet": "tsx src/review-sheet.ts"
+  },
+  "dependencies": {
+    "sharp": "^0.35.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^3.2.4"
+  }
+}
