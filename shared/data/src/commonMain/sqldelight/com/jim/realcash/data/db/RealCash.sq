@@ -1,0 +1,71 @@
+-- Append-only ledger. `payload` is the kotlinx-serialization JSON of a LedgerEvent (class discriminator "type").
+-- `type` and `at_epoch_ms` duplicate payload fields so the table can be inspected and filtered without decoding.
+CREATE TABLE ledger_event (
+    seq INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id TEXT NOT NULL UNIQUE,
+    type TEXT NOT NULL,
+    at_epoch_ms INTEGER NOT NULL,
+    payload TEXT NOT NULL
+);
+
+insertEvent:
+INSERT INTO ledger_event(event_id, type, at_epoch_ms, payload)
+VALUES (?, ?, ?, ?);
+
+selectAllPayloads:
+SELECT payload FROM ledger_event ORDER BY seq ASC;
+
+countEvents:
+SELECT count(*) FROM ledger_event;
+
+-- Typed settings are encoded as strings by SettingsRepository.
+CREATE TABLE app_setting (
+    key TEXT NOT NULL PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
+selectSetting:
+SELECT value FROM app_setting WHERE key = ?;
+
+selectAllSettings:
+SELECT key, value FROM app_setting;
+
+upsertSetting:
+INSERT OR REPLACE INTO app_setting(key, value) VALUES (?, ?);
+
+deleteSetting:
+DELETE FROM app_setting WHERE key = ?;
+
+-- Outcome of every parsed payment notification. Used for de-duplication and the debug / sample screen.
+-- raw_text never leaves the device.
+CREATE TABLE detected_payment_log (
+    payment_id TEXT NOT NULL PRIMARY KEY,
+    source_app TEXT NOT NULL,
+    amount INTEGER NOT NULL,
+    merchant TEXT,
+    detected_at_epoch_ms INTEGER NOT NULL,
+    raw_text TEXT NOT NULL,
+    outcome TEXT NOT NULL
+);
+
+CREATE INDEX detected_payment_log_detected_at ON detected_payment_log(detected_at_epoch_ms);
+
+insertPaymentLog:
+INSERT OR REPLACE INTO detected_payment_log(payment_id, source_app, amount, merchant, detected_at_epoch_ms, raw_text, outcome)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+selectPaymentLogBetween:
+SELECT * FROM detected_payment_log
+WHERE detected_at_epoch_ms BETWEEN :fromEpochMs AND :toEpochMs
+ORDER BY detected_at_epoch_ms ASC, payment_id ASC;
+
+selectRecentPaymentLog:
+SELECT * FROM detected_payment_log
+ORDER BY detected_at_epoch_ms DESC, payment_id DESC
+LIMIT :limit;
+
+countPaymentLog:
+SELECT count(*) FROM detected_payment_log;
+
+paymentLogExists:
+SELECT count(*) > 0 FROM detected_payment_log WHERE payment_id = ?;

@@ -21,6 +21,7 @@ dependencyResolutionManagement {
 // Pure Kotlin domain model, ledger reducer, calculators and notification parser.
 include(":shared:domain")
 
-// TODO(T4): include(":shared:data")   // SQLDelight event store, settings, parser-rule loader
+// SQLDelight event store, settings, parser-rule loader and the payment-intake orchestration.
+include(":shared:data")
 // TODO(T5): include(":shared:ui")     // Compose Multiplatform screens
 // TODO(T3): include(":androidApp")    // Requires the Android SDK / AGP (dl.google.com access)
