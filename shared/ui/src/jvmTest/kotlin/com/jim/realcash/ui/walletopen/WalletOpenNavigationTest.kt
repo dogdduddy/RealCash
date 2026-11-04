@@ -36,7 +36,7 @@ class WalletOpenNavigationTest {
         val clock = object : Clock { override fun now() = Instant.parse("2026-11-04T09:00:00Z") }
         try {
             val data = RealCashData(driver, clock, SequentialIdGenerator(), EmptyCoroutineContext)
-            data.wallet.receiveAllowance(mapOf(W50000 to 1, W10000 to 1, W5000 to 1, W1000 to 1, C500 to 1), LocalDate(2026, 11, 1))
+            data.wallet.receiveAllowance(mapOf(W50000 to 1, W10000 to 3, W5000 to 1, W1000 to 1, C500 to 1), LocalDate(2026, 11, 1))
             val app = AppState(AppEnvironment(data, Haptics.None, clock = clock), scope)
             app.openWallet()
             val scene = ImageComposeScene(780, 1688, Density(2f)) { RealCashTheme { RealCashRoot(app) } }
@@ -50,16 +50,18 @@ class WalletOpenNavigationTest {
             try {
                 settle()
                 val layout = WalletOpenLayout.calculate(390f, 844f)
-                val group = pocketBillGroups(mapOf(W50000 to 1, W10000 to 1, W5000 to 1, W1000 to 1), layout.pocket)[1]
-                tap(group.left + group.billWidth / 2, group.top + group.exposedHeight / 2)
+                val group = pocketBillGroups(mapOf(W50000 to 1, W10000 to 3, W5000 to 1, W1000 to 1), layout.pocket)[1]
+                tap(group.left + 1.5f, group.top + group.exposedHeight / 2)
                 assertEquals(Won(10_000), app.walletOpen.ui.value.handTotal)
+                assertEquals(data.wallet.state.value.inWallet.last { it.denomination == W10000 }.id,
+                    app.walletOpen.ui.value.inHand.single().id)
                 assertTrue(data.wallet.state.value.inHand.isEmpty())
                 // Tapping the leather below the lip does not select a covered bill.
-                tap(group.left + group.billWidth / 2, layout.pocket.top + 20f)
+                tap(group.left + 1.5f, layout.pocket.top + 20f)
                 assertEquals(Won(10_000), app.walletOpen.ui.value.handTotal)
                 tap(layout.trayInner.left + 50f, layout.trayInner.top + layout.trayInner.height / 2)
                 assertEquals(Won.ZERO, app.walletOpen.ui.value.handTotal)
-                tap(group.left + group.billWidth / 2, group.top + group.exposedHeight / 2)
+                tap(group.left + 1.5f, group.top + group.exposedHeight / 2)
                 tap(264f, layout.tray.bottom + 24f)
                 assertEquals(Won(10_000), data.wallet.state.value.inHand.total())
                 tap(348f, layout.tray.bottom + 22f)

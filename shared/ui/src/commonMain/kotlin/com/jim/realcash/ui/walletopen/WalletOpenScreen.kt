@@ -56,7 +56,6 @@ import com.jim.realcash.ui.money.BillFace
 import com.jim.realcash.ui.money.CoinFace
 import com.jim.realcash.ui.money.CountBadge
 import com.jim.realcash.ui.money.LocalMoneyArt
-import com.jim.realcash.ui.money.billAspectRatio
 import com.jim.realcash.ui.money.relativeSize
 import com.jim.realcash.ui.resources.Res
 import com.jim.realcash.ui.resources.tray
@@ -97,6 +96,7 @@ fun WalletOpenContent(
     BoxWithConstraints(modifier.fillMaxSize()) {
         val layout = remember(maxWidth, maxHeight) { WalletOpenLayout.calculate(maxWidth.value, maxHeight.value) }
         val wallet = layout.wallet
+        val controlsRight = if (maxWidth > maxHeight) layout.tray.right else maxWidth.value
         val art = LocalMoneyArt.current
         val bills = ui.inWallet.filter { it.denomination.kind == Denomination.Kind.BILL }.groupBy { it.denomination }
         val groups = pocketBillGroups(bills.mapValues { it.value.size }, layout.pocket)
@@ -113,6 +113,8 @@ fun WalletOpenContent(
         val visibleCoins = scatter.filter { allCoins[it.index].id in walletIds }
         val overflow = coins.filter { coin -> visibleCoins.none { allCoins[it.index].id == coin.id } }
         var overflowOpen by remember { mutableStateOf(false) }
+
+        Image(walletPainter, "열린 지갑", Modifier.rect(wallet), contentScale = ContentScale.FillBounds)
 
         IconButton(onClick = onBack, enabled = !submitting, modifier = Modifier.offset(4.dp, 8.dp).semantics { contentDescription = "뒤로" }) {
             RcIconGlyph(RcIcon.BACK)
@@ -133,26 +135,25 @@ fun WalletOpenContent(
                 modifier = Modifier.rect(layout.trayInner).padding(top = (layout.trayInner.height / 2f - 8f).dp))
         }
         TextButton(onClick = onConfirm, enabled = ui.changed && !submitting,
-            modifier = Modifier.offset(x = (maxWidth.value - 158f).dp, y = (layout.tray.bottom + 2f).dp)) {
+            modifier = Modifier.offset(x = (controlsRight - 158f).dp, y = (layout.tray.bottom + 2f).dp)) {
             Text(if (submitting) "저장 중" else "확정")
         }
-        FilledTonalButton(onClick = onCalculate, modifier = Modifier.offset((maxWidth.value - 84f).dp, (layout.tray.bottom + 2f).dp).height(40.dp)) { Text("계산") }
+        FilledTonalButton(onClick = onCalculate, modifier = Modifier.offset((controlsRight - 84f).dp, (layout.tray.bottom + 2f).dp).height(40.dp)) { Text("계산") }
         if (wallet.top > layout.tray.bottom + 100f) {
             Text("지폐·동전을 탭해 집거나 돌려놓으세요", style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth().offset(y = (layout.tray.bottom + 58f).dp))
         }
 
-        Image(walletPainter, "열린 지갑", Modifier.rect(wallet), contentScale = ContentScale.FillBounds)
         // Full bill layer. The identical foreground crop below hides everything under the pocket lip.
         groups.forEach { group ->
             val painter = art.painter(group.denomination)
-            for (i in group.visibleCount - 1 downTo 0) {
+            for (i in 0 until group.visibleCount) {
                 Box(Modifier.offset((group.left + i * group.fanStep).dp, group.top.dp).size(group.billWidth.dp, group.billHeight.dp), contentAlignment = Alignment.Center) {
                     BillFace(group.denomination,
                         Modifier.requiredSize(group.billHeight.dp, group.billWidth.dp)
                             .graphicsLayer { rotationZ = 90f }
-                            .drawWithContent { drawContent(); drawRect(Color.Black.copy(alpha = (i * 0.035f).coerceAtMost(0.28f))) }, painter)
+                            .drawWithContent { drawContent(); drawRect(Color.Black.copy(alpha = ((group.visibleCount - 1 - i) * 0.035f).coerceAtMost(0.28f))) }, painter)
                 }
             }
         }
@@ -160,17 +161,14 @@ fun WalletOpenContent(
             Modifier.rect(wallet).drawWithContent { clipRect(top = size.height * 0.405f) { this@drawWithContent.drawContent() } },
             contentScale = ContentScale.FillBounds)
         // Hit targets cover the exposed paper only, so tapping leather never picks an invisible bill.
-        groups.forEach { group ->
+        groups.forEachIndexed { index, group ->
             val units = bills.getValue(group.denomination)
-            for (i in group.visibleCount - 1 downTo 0) {
-                Box(Modifier.offset((group.left + i * group.fanStep).dp, group.top.dp)
-                    .size(group.billWidth.dp, group.exposedHeight.dp)
-                    .semantics { contentDescription = "${group.denomination.faceLabel}원 손에 들기" }
-                    .clickable(enabled = !submitting) { onToggle(units[i].id) })
-            }
+            Box(Modifier.rect(pocketBillHitBounds(groups, index)).clipToBounds()
+                .semantics { contentDescription = "${group.denomination.faceLabel}원 손에 들기" }
+                .clickable(enabled = !submitting) { onToggle(units.last().id) })
             if (group.count > group.visibleCount) {
                 CountBadge(group.count, Modifier.offset(group.left.dp, (group.top - 22f).dp)
-                    .clickable(enabled = !submitting) { onToggle(units.first().id) })
+                    .clickable(enabled = !submitting) { onToggle(units.last().id) })
             }
         }
         visibleCoins.forEach { coin ->
@@ -216,17 +214,17 @@ private fun FallingCoin(unit: CashUnit, placement: ScatteredCoin, enabled: Boole
 private fun TrayMoney(units: List<CashUnit>, area: WalletRect, enabled: Boolean, onToggle: (CashUnitId) -> Unit) {
     val bills = units.filter { it.denomination.kind == Denomination.Kind.BILL }
     val coins = units.filter { it.denomination.kind == Denomination.Kind.COIN }
-    val billHeight = minOf(66f, area.height * 0.78f)
-    val billWidth = bills.maxOfOrNull { billHeight * it.denomination.billAspectRatio } ?: 0f
-    val billsRight = if (bills.isEmpty()) 0f else billWidth + (bills.size - 1) * 6f
+    val billBounds = trayBillBounds(bills.map { it.denomination }, area)
+    val billsRight = billBounds.maxOfOrNull { it.right - area.left } ?: 0f
     val coinsStart = if (bills.isEmpty()) 0f else billsRight + 12f
     val contentWidth = maxOf(area.width, coinsStart + coins.sumOf { (34f * it.denomination.relativeSize + 6f).toDouble() }.toFloat())
     Box(Modifier.rect(area).clipToBounds().horizontalScroll(rememberScrollState())) {
         Box(Modifier.width(contentWidth.dp).height(area.height.dp)) {
             bills.forEachIndexed { i, unit ->
+                val rect = billBounds[i]
                 BillFace(unit.denomination,
-                    Modifier.offset((i * 6f).dp, ((area.height - billHeight) / 2f).dp)
-                        .size((billHeight * unit.denomination.billAspectRatio).dp, billHeight.dp)
+                    Modifier.offset((rect.left - area.left).dp, (rect.top - area.top).dp)
+                        .size(rect.width.dp, rect.height.dp)
                         .clickable(enabled = enabled, onClickLabel = "지갑에 돌려놓기") { onToggle(unit.id) },
                     LocalMoneyArt.current.painter(unit.denomination))
             }
