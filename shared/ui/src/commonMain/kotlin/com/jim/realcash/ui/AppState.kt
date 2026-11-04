@@ -10,6 +10,7 @@ import com.jim.realcash.ui.allowance.ReceiveAllowanceModel
 import com.jim.realcash.ui.confirm.ConfirmPaymentsModel
 import com.jim.realcash.ui.exchange.ExchangeModel
 import com.jim.realcash.ui.ledger.LedgerModel
+import com.jim.realcash.ui.manual.ManualPaymentModel
 import com.jim.realcash.ui.settings.SettingsModel
 import com.jim.realcash.ui.simulator.NotificationSimulatorModel
 import com.jim.realcash.ui.takeout.TakeOutModel
@@ -153,6 +154,12 @@ class AppState(
     /** Whether the payment confirmation sheet (screen 3) is open. */
     var confirmSheetOpen: Boolean by mutableStateOf(false)
 
+    /** Whether the manual payment fallback is open. */
+    var manualSheetOpen: Boolean by mutableStateOf(false)
+        private set
+
+    val manualPayment: ManualPaymentModel by lazy { ManualPaymentModel(scope, env) }
+
     /** Wallet home model (created on first use). */
     val walletHome: WalletHomeModel by lazy { WalletHomeModel(scope, env) }
 
@@ -241,5 +248,14 @@ class AppState(
     /** Closes the payment confirmation sheet. */
     fun closeConfirmSheet() {
         confirmSheetOpen = false
+    }
+
+    fun openManualSheet() {
+        manualPayment.beginSession()
+        manualSheetOpen = true
+    }
+
+    fun closeManualSheet() {
+        if (!manualPayment.submitting.value) manualSheetOpen = false
     }
 }

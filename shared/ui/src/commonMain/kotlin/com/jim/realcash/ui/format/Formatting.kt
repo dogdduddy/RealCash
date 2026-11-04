@@ -7,6 +7,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import com.jim.realcash.domain.model.Denomination
 import com.jim.realcash.domain.model.Won
 import com.jim.realcash.domain.parser.DefaultRules
+import com.jim.realcash.ui.Strings
 import kotlin.time.Duration
 import kotlin.time.Instant
 import kotlinx.datetime.DayOfWeek
@@ -101,6 +102,7 @@ fun formatTime(instant: Instant, timeZone: TimeZone, today: LocalDate): String {
 fun sourceAppLabel(packageName: String): String = when (packageName) {
     DefaultRules.SAMSUNG_WALLET -> "삼성월렛"
     DefaultRules.TOSS -> "토스"
+    "manual" -> Strings.MANUAL_TITLE
     else -> packageName
 }
 

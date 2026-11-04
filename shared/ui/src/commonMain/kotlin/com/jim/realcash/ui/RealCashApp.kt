@@ -26,6 +26,7 @@ import com.jim.realcash.ui.components.RcIconGlyph
 import com.jim.realcash.ui.confirm.ConfirmPaymentsSheet
 import com.jim.realcash.ui.exchange.ExchangeScreen
 import com.jim.realcash.ui.ledger.LedgerScreen
+import com.jim.realcash.ui.manual.ManualPaymentSheet
 import com.jim.realcash.ui.money.LocalMoneyArt
 import com.jim.realcash.ui.money.ResourceMoneyArt
 import com.jim.realcash.ui.settings.SettingsScreen
@@ -119,6 +120,7 @@ fun RealCashRoot(
                         model = appState.walletHome,
                         onReceiveAllowance = { appState.navigate(Screen.ReceiveAllowance) },
                         onOpenPending = appState::openConfirmSheet,
+                        onManualPayment = appState::openManualSheet,
                         onTakeOut = { appState.navigate(Screen.TakeOut(refill = false)) },
                         onTakeMore = { appState.navigate(Screen.TakeOut(refill = true)) },
                         onExchange = { appState.navigate(Screen.Exchange) },
@@ -150,6 +152,9 @@ fun RealCashRoot(
         }
         if (appState.confirmSheetOpen) {
             ConfirmPaymentsSheet(appState.confirmPayments, onDismiss = appState::closeConfirmSheet)
+        }
+        if (appState.manualSheetOpen) {
+            ManualPaymentSheet(appState.manualPayment, onDismiss = appState::closeManualSheet, snackbarHostState = appState.snackbarHostState)
         }
     }
 }
