@@ -15,6 +15,7 @@ import com.jim.realcash.ui.settings.SettingsModel
 import com.jim.realcash.ui.simulator.NotificationSimulatorModel
 import com.jim.realcash.ui.takeout.TakeOutModel
 import com.jim.realcash.ui.wallet.WalletHomeModel
+import com.jim.realcash.ui.walletopen.WalletOpenModel
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Clock
 import kotlinx.coroutines.CoroutineScope
@@ -33,7 +34,7 @@ sealed interface Screen {
     /** The only navigation root. */
     data object WalletHome : Screen
 
-    /** Open wallet placeholder; the next layout task supplies its contents. */
+    /** Open wallet, tray and temporary cash selection. */
     data object WalletOpen : Screen
 
     /** Ledger, opened from the wallet menu. */
@@ -151,6 +152,11 @@ class AppState(
     /** Settings model (created on first use). */
     val settings: SettingsModel by lazy { SettingsModel(scope, env) }
 
+    private var walletOpenModel: WalletOpenModel? = null
+
+    val walletOpen: WalletOpenModel
+        get() = walletOpenModel ?: WalletOpenModel(scope, env).also { walletOpenModel = it }
+
     private var allowanceModel: ReceiveAllowanceModel? = null
     private var takeOutModel: TakeOutModel? = null
     private var exchangeModel: ExchangeModel? = null
@@ -193,6 +199,12 @@ class AppState(
 
     /** Pushes [screen]. */
     fun navigate(screen: Screen) {
+        if (current == Screen.WalletOpen) {
+            walletOpen.confirm { push(screen) }
+        } else push(screen)
+    }
+
+    private fun push(screen: Screen) {
         resetModelOf(screen)
         backStack.add(screen)
     }
@@ -200,14 +212,23 @@ class AppState(
     /** Pops the top screen; returns false when already at the home. */
     fun back(): Boolean {
         if (backStack.size <= 1) return false
+        if (current == Screen.WalletOpen) {
+            walletOpen.confirm { pop() }
+            return true
+        }
+        pop()
+        return true
+    }
+
+    private fun pop() {
         val popped = backStack.removeAt(backStack.lastIndex)
         resetModelOf(popped)
-        return true
     }
 
     /** Drops the per-visit model of [screen] so that the next visit starts from a fresh draft. */
     private fun resetModelOf(screen: Screen) {
         when (screen) {
+            Screen.WalletOpen -> walletOpenModel = null
             Screen.ReceiveAllowance -> allowanceModel = null
             is Screen.TakeOut -> takeOutModel = null
             Screen.Exchange -> exchangeModel = null

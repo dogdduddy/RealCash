@@ -36,3 +36,6 @@ Pods/
 
 # macOS
 .DS_Store
+
+# 스크린샷은 build/screenshots 에만 (검수용 생성물)
+shared/ui/screenshots/

@@ -5,10 +5,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.updateTransition
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -17,7 +14,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -27,19 +23,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.dp
 import com.jim.realcash.data.RealCashData
 import com.jim.realcash.ui.allowance.ReceiveAllowanceScreen
 import com.jim.realcash.ui.components.RcIcon
 import com.jim.realcash.ui.components.RcIconGlyph
-import com.jim.realcash.ui.components.ScreenHeader
 import com.jim.realcash.ui.confirm.ConfirmPaymentsSheet
 import com.jim.realcash.ui.exchange.ExchangeScreen
 import com.jim.realcash.ui.ledger.LedgerScreen
@@ -51,6 +44,7 @@ import com.jim.realcash.ui.simulator.NotificationSimulatorScreen
 import com.jim.realcash.ui.takeout.TakeOutScreen
 import com.jim.realcash.ui.theme.RealCashTheme
 import com.jim.realcash.ui.wallet.WalletHomeScreen
+import com.jim.realcash.ui.walletopen.WalletOpenScreen
 import kotlin.time.Clock
 import kotlinx.datetime.TimeZone
 
@@ -189,19 +183,13 @@ private fun WalletScene(appState: AppState, showDebugShortcut: Boolean) {
                 menu = { WalletMenu(appState, showDebugShortcut) },
             )
         }
-        if (opening > 0f) {
-            Column(Modifier.fillMaxSize().graphicsLayer { alpha = opening }) {
-                ScreenHeader(Strings.WALLET, onBack = { if (open) appState.back() })
-                Surface(
-                    color = MaterialTheme.colorScheme.surfaceContainer,
-                    shape = MaterialTheme.shapes.extraLarge,
-                    modifier = Modifier.fillMaxWidth().padding(24.dp).height(180.dp),
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(Strings.WALLET_OPEN_LAYOUT, style = MaterialTheme.typography.bodyMedium)
-                    }
-                }
-            }
+        if (open) {
+            WalletOpenScreen(
+                model = appState.walletOpen,
+                onBack = { appState.back() },
+                onManualPayment = appState::openManualSheet,
+                modifier = Modifier.graphicsLayer { alpha = opening },
+            )
         }
     }
 }
@@ -227,6 +215,7 @@ private fun WalletMenu(appState: AppState, showDebugShortcut: Boolean) {
             if (showDebugShortcut) {
                 DropdownMenuItem(text = { Text(Strings.SIMULATOR_SHORTCUT) }, onClick = { choose { appState.navigate(Screen.NotificationSimulator) } })
             }
+            DropdownMenuItem(text = { Text("꺼내기") }, onClick = { choose { appState.navigate(Screen.TakeOut(refill = true)) } })
         }
     }
 }

@@ -356,6 +356,36 @@ class ScreenshotTest {
         assertTrue(!app.canGoBack)
     }
 
+    @Test
+    fun t_openWalletFourBillsAndCoins() = runBlocking {
+        val data = newData().apply { seedAllowance() }
+        val app = newAppState(data)
+        app.openWallet()
+        render("t-wallet-open-layout") { RealCashRoot(app) }
+    }
+
+    @Test
+    fun u_openWalletTrayAndDarkTheme() = runBlocking {
+        val data = newData().apply { seedAllowance() }
+        val app = newAppState(data)
+        app.openWallet()
+        listOf(W10000, W5000, C500).forEach { denomination ->
+            app.walletOpen.toggle(data.wallet.state.value.inWallet.first { it.denomination == denomination }.id)
+        }
+        render("u-wallet-open-tray") { RealCashRoot(app) }
+        render("u-wallet-open-tray-dark", dark = true) { RealCashRoot(app) }
+    }
+
+    @Test
+    fun v_openWalletPaymentDialog() = runBlocking {
+        val data = newData().apply { seedAllowance() }
+        val app = newAppState(data)
+        app.openWallet()
+        app.walletOpen.showPaymentInfo()
+        render("v-wallet-open-payment") { RealCashRoot(app) }
+        render("v-wallet-open-payment-dark", dark = true) { RealCashRoot(app) }
+    }
+
     private fun render(
         name: String,
         dark: Boolean = false,
