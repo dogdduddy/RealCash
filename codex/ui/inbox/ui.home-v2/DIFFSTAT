@@ -1,0 +1,16 @@
+55204f1149959e9996966d6286a848b0ebb357bf [codex-ui] ui.home-v2: 홈 v2 — 기간·남은 금액과 접힌 지갑만 보이는 첫 화면, 탭하면 지갑이 열린다
+
+ .../kotlin/com/jim/realcash/ui/AppState.kt         |  56 +---
+ .../kotlin/com/jim/realcash/ui/RealCashApp.kt      | 116 +++++--
+ .../kotlin/com/jim/realcash/ui/Strings.kt          |  10 +-
+ .../com/jim/realcash/ui/components/ClosedWallet.kt |  51 +++
+ .../kotlin/com/jim/realcash/ui/components/Icons.kt |   5 +-
+ .../com/jim/realcash/ui/ledger/LedgerScreen.kt     |   8 +-
+ .../jim/realcash/ui/settings/SettingsScreens.kt    |   3 +-
+ .../com/jim/realcash/ui/wallet/WalletHomeModel.kt  | 186 ++---------
+ .../com/jim/realcash/ui/wallet/WalletHomeScreen.kt | 356 ++++-----------------
+ .../realcash/ui/manual/ManualPaymentModelTest.kt   |   6 +-
+ .../jim/realcash/ui/screenshot/ScreenshotTest.kt   |  54 +++-
+ .../jim/realcash/ui/wallet/WalletHomeModelTest.kt  | 151 +++++++++
+ .../jim/realcash/ui/wallet/WalletNavigationTest.kt | 127 ++++++++
+ 13 files changed, 593 insertions(+), 536 deletions(-)
