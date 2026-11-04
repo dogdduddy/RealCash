@@ -1,0 +1,8 @@
+d438bbb9b43a0c19cfcf7da40bee427af8038619 [codex-ui] ui.coin-art: 실물풍 동전 이미지 4종을 지갑·꺼내기·환전 화면에 연결
+
+ .../kotlin/com/jim/realcash/ui/money/MoneyArt.kt   | 11 +++++-
+ .../kotlin/com/jim/realcash/ui/money/MoneyFaces.kt | 30 +++++++++++----
+ .../com/jim/realcash/ui/takeout/TakeOutScreen.kt   | 10 ++---
+ .../jim/realcash/ui/money/ResourceMoneyArtTest.kt  | 24 +++++++-----
+ .../jim/realcash/ui/screenshot/ScreenshotTest.kt   | 45 ++++++++++++++++++++--
+ 5 files changed, 92 insertions(+), 28 deletions(-)
