@@ -1,14 +1,50 @@
 {
-  "$comment": "RealCash 에셋 목록. assets 키는 에셋 id(의뢰서 id와 같음, 예: bill.w10000.a), 값은 { path: 앱이 쓰는 정리본 경로, size: \"WxH\", status: \"draft\" | \"final\", source: \"gpt\", aiGenerated: true|false }. 검수 통과 시 Claude 세션이 draft로 추가하고, final은 사람 승인 뒤에만 붙인다. 원본은 assets/raw/, 출처 기록은 assets/LOG.md.",
+  "$comment": "RealCash 에셋 목록. assets 키는 에셋 id(의뢰서 id와 같음, 예: bill.w10000.a), 값은 { path: 앱이 쓰는 정리본 경로, size: \"WxH\", status: \"draft\" | \"final\", source: \"gpt\", aiGenerated: true|false }. 검수 통과 시 Claude 세션이 draft로 추가하고, final은 사람 승인 뒤에만 붙인다. 원본은 assets/raw/, 출처 기록은 assets/LOG.md. assets/img/drawable/ 는 Compose Multiplatform 리소스 디렉터리(customDirectory)로도 쓰여 파일명이 리소스 id(bill_w10000 등)가 된다.",
   "version": 1,
   "assets": {
     "bill.w10000.a": {
-      "path": "assets/img/money/bill.w10000.png",
+      "path": "assets/img/drawable/bill_w10000_a.png",
       "size": "1024x448",
       "status": "draft",
       "source": "gpt",
       "aiGenerated": true,
-      "role": "만원권 앞면 · 돈 그림 화풍 기준(앵커)"
+      "role": "미채택 — 오리지널 스타일 시안, bill.w10000.b 로 대체"
+    },
+    "bill.w10000.b": {
+      "path": "assets/img/drawable/bill_w10000.png",
+      "resource": "bill_w10000",
+      "size": "1024x470",
+      "status": "draft",
+      "source": "gpt",
+      "aiGenerated": true,
+      "role": "만원권 앞면 (실물풍, 초상→혼천의)"
+    },
+    "bill.w50000.b": {
+      "path": "assets/img/drawable/bill_w50000.png",
+      "resource": "bill_w50000",
+      "size": "1024x452",
+      "status": "draft",
+      "source": "gpt",
+      "aiGenerated": true,
+      "role": "오만원권 앞면 (실물풍, 초상→월매도·풍죽도)"
+    },
+    "bill.w5000.b": {
+      "path": "assets/img/drawable/bill_w5000.png",
+      "resource": "bill_w5000",
+      "size": "1024x490",
+      "status": "draft",
+      "source": "gpt",
+      "aiGenerated": true,
+      "role": "오천원권 앞면 (실물풍, 초상→초충도)"
+    },
+    "bill.w1000.b": {
+      "path": "assets/img/drawable/bill_w1000.png",
+      "resource": "bill_w1000",
+      "size": "1024x512",
+      "status": "draft",
+      "source": "gpt",
+      "aiGenerated": true,
+      "role": "천원권 앞면 (실물풍, 초상→계상정거도)"
     }
   }
 }

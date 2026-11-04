@@ -37,6 +37,8 @@ kotlin {
             implementation(libs.compose.material3)
             // NOTE(T3): RealCashRoot maps the platform back event (Android back button / gesture) to the back stack.
             implementation(libs.compose.ui.backhandler)
+            // Reviewed money artwork (assets/img/drawable) is exposed as Res.drawable.* on every platform.
+            implementation(compose.components.resources)
         }
         jvmMain.dependencies {
             // Skiko runtime + desktop window APIs for the host OS.
@@ -63,6 +65,17 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+}
+
+// The reviewed assets live in assets/img (manifest, LOG.md); they are served as Compose resources from there
+// instead of being copied into src/commonMain/composeResources, so the repo keeps one copy per image.
+compose.resources {
+    publicResClass = false
+    packageOfResClass = "com.jim.realcash.ui.resources"
+    customDirectory(
+        sourceSetName = "commonMain",
+        directoryProvider = provider { layout.projectDirectory.dir("../../assets/img") },
+    )
 }
 
 compose.desktop {
