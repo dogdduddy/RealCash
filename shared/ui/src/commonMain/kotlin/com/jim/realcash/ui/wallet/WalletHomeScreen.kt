@@ -5,11 +5,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -24,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.jim.realcash.ui.Strings
 import com.jim.realcash.ui.components.ClosedWallet
 import com.jim.realcash.ui.format.formatted
@@ -64,22 +67,26 @@ fun WalletHomeContent(
         ) {
             Text(ui.periodLabel, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(8.dp))
-            // Flow to a second line at large accessibility font sizes instead of truncating the amount.
-            FlowRow(
+            // Always one line: the amount shrinks to fit (wide ₩ glyphs, large font scales) so that
+            // the header height, and therefore the wallet position below, never depends on the balance.
+            Row(
                 Modifier.fillMaxWidth().padding(horizontal = 20.dp),
                 horizontalArrangement = Arrangement.Center,
-                verticalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
                     ui.balance.formatted(),
                     style = MaterialTheme.typography.displayLarge.copy(fontWeight = FontWeight.Bold),
                     textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    autoSize = TextAutoSize.StepBased(minFontSize = 24.sp, maxFontSize = 57.sp, stepSize = 1.sp),
+                    modifier = Modifier.weight(1f, fill = false),
                 )
                 Text(
                     Strings.REMAINING,
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.align(Alignment.CenterVertically).padding(start = 8.dp),
+                    modifier = Modifier.padding(start = 8.dp),
                 )
             }
             Spacer(Modifier.height(10.dp))

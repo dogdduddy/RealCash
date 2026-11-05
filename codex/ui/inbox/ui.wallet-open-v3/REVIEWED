@@ -1,0 +1,1 @@
+PASS merged a6cdd49 2026-11-05 범위 shared/ui 만(검수용 v3 사본 3장은 머지 뒤 제거). 새 그림 전체 표시(ContentScale.Fit), 입구 좌표 WalletOpening(manifest opening·usable), 지폐는 rotationZ 90 + rotationX 60 원근으로 짧은 변 윗부분 35% 노출·렌즈 클립, 집기 판정도 같은 렌즈 식. 동전 바닥 drop(FLOOR: 머리글·접시·지갑·다른 동전 제외, 접시→바닥 직접 복귀 포함). 스크린샷 v3-open/held/coin-left 확인. 합친 트리 jvmTest 137개 중 실패 1은 10의 h3 테스트(폰트 차이)로 11과 무관.
