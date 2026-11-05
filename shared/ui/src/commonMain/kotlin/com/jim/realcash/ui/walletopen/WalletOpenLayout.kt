@@ -27,7 +27,18 @@ data class PocketBillGroup(
     val exposedWidth: Float,
 ) {
     val right get() = left + exposedWidth + (visibleCount - 1) * fanStep
-    val frontLeft get() = left + (visibleCount - 1) * fanStep
+    val frontLeft get() = left
+
+    /** Paint the rightmost backs first; picking removes only the left front, without reflow. */
+    fun drawOrder(frontPicked: Boolean = false): List<Int> =
+        (visibleCount - 1 downTo if (frontPicked) 1 else 0).toList()
+
+    /** The front shows its whole strip; each back shows only its protruding right edge. */
+    fun exposedBillBounds(index: Int): WalletRect {
+        val right = left + index * fanStep + exposedWidth
+        val visibleWidth = if (index == 0) exposedWidth else minOf(fanStep, exposedWidth)
+        return WalletRect(right - visibleWidth, top, visibleWidth, exposedHeight)
+    }
 }
 
 /** Reviewed wallet.open.b.opening and opening.usable, in image coordinates. */

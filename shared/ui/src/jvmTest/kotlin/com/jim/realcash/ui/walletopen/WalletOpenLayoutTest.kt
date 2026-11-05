@@ -10,6 +10,48 @@ class WalletOpenLayoutTest {
     private val allowance = mapOf(W50000 to 1, W10000 to 3, W5000 to 2, W1000 to 5)
 
     @Test
+    fun pocketBillsPaintRightToLeftWithTheLeftmostFaceInFront() {
+        val groups = pocketBillGroups(allowance, WalletOpenLayout.calculate(390f, 844f).pocket)
+        assertEquals(listOf(0), groups[0].drawOrder())
+        assertEquals(listOf(2, 1, 0), groups[1].drawOrder())
+        assertEquals(listOf(1, 0), groups[2].drawOrder())
+        assertEquals(listOf(4, 3, 2, 1, 0), groups[3].drawOrder())
+    }
+
+    @Test
+    fun pickingHidesOnlyTheLeftFrontAndLeavesTheBacksInTheirOriginalSlots() {
+        val groups = pocketBillGroups(allowance, WalletOpenLayout.calculate(390f, 844f).pocket)
+        groups.forEach { group ->
+            val before = group.drawOrder().associateWith { group.left + it * group.fanStep }
+            val held = group.drawOrder(frontPicked = true).associateWith { group.left + it * group.fanStep }
+            assertEquals(before - 0, held)
+        }
+        assertEquals(listOf(2, 1), groups[1].drawOrder(frontPicked = true))
+        assertTrue(groups[0].drawOrder(frontPicked = true).isEmpty())
+    }
+
+    @Test
+    fun frontLeftIsTheLeftEdgeForEveryGroupSize() {
+        for (count in listOf(1, 2, 3, 30)) {
+            val group = pocketBillGroups(mapOf(W10000 to count), WalletOpenLayout.calculate(390f, 844f).pocket).single()
+            assertEquals(group.left, group.frontLeft)
+        }
+    }
+
+    @Test
+    fun swayStripsFollowTheFullLeftFaceThenOnlyTheRightEdges() {
+        val groups = pocketBillGroups(allowance, WalletOpenLayout.calculate(390f, 844f).pocket)
+        groups.forEach { group ->
+            val strips = (0 until group.visibleCount).map(group::exposedBillBounds)
+            assertEquals(group.left, strips.first().left, 0.001f)
+            assertEquals(group.exposedWidth, strips.first().width)
+            strips.drop(1).forEach { assertEquals(group.fanStep, it.width) }
+            strips.zipWithNext().forEach { (a, b) -> assertEquals(a.right, b.left, 0.001f) }
+            assertEquals(group.right, strips.last().right, 0.001f)
+        }
+    }
+
+    @Test
     fun billDimensionsComeFromPocketDepthAndPhysicalRatios() {
         val pocket = WalletRect(30f, 400f, 260f, 350f)
         val groups = pocketBillGroups(allowance, pocket)

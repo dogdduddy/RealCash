@@ -105,7 +105,7 @@ fun WalletOpenContent(
         val overTray = physics.overTray // edge transitions only
         val hits = buildList {
             groups.forEachIndexed { index, group ->
-                add(CashHit(bills.getValue(group.denomination).last(), false, pocketBillHitBounds(groups, index),
+                add(CashHit(bills.getValue(group.denomination).first(), false, pocketBillHitBounds(groups, index),
                     WalletRect(group.frontLeft, group.top, group.billWidth, group.billHeight), wallet))
             }
             coins.forEach { coin -> coinSlots[coin.id]?.let { add(CashHit(coin, false, it, it)) } }
@@ -114,7 +114,7 @@ fun WalletOpenContent(
         val sway = groups.flatMap { group ->
             (0 until group.visibleCount).map { i ->
                 val animation = key(group.denomination, i) { remember { BillSway(scope) } }
-                WalletRect(group.left + i * group.fanStep, group.top, group.exposedWidth, group.exposedHeight) to animation
+                group.exposedBillBounds(i) to animation
             }
         }
         val currentEnabled = rememberUpdatedState(!submitting)
@@ -200,34 +200,36 @@ fun WalletOpenContent(
                 var index = 0
                 groups.forEach { group ->
                     val painter = art.painter(group.denomination)
-                    for (i in 0 until group.visibleCount) {
-                        val animation = sway[index++].second
-                        val hidden = i == group.visibleCount - 1 && bills.getValue(group.denomination).last().id == pickedId
-                        BillFace(group.denomination,
-                            Modifier.offset((group.left + i * group.fanStep + group.exposedWidth).dp, group.top.dp)
-                                .size(group.billHeight.dp, group.billWidth.dp)
-                                .graphicsLayer {
-                                    transformOrigin = TransformOrigin(0f, 0f)
-                                    rotationZ = 90f + animation.angle.value
-                                    cameraDistance = 10_000.dp.toPx()
-                                    translationX = animation.x.value.dp.toPx()
-                                    alpha = if (hidden) 0f else 1f
-                                }.graphicsLayer {
-                                    transformOrigin = TransformOrigin(0f, 0f)
-                                    rotationX = WalletOpening.ROTATION_X
-                                    cameraDistance = 10_000.dp.toPx()
-                                }.drawWithContent {
-                                    clipRect(bottom = minOf(size.height * WalletOpening.FACE_FRACTION, group.exposedWidth.dp.toPx() * 2f)) {
-                                        this@drawWithContent.drawContent()
-                                        drawRect(Color.Black.copy(alpha = ((group.visibleCount - 1 - i) * 0.035f).coerceAtMost(0.28f)))
-                                    }
-                                }, painter)
+                    val frontPicked = bills.getValue(group.denomination).first().id == pickedId
+                    for (i in group.drawOrder(frontPicked)) {
+                        val animation = sway[index + i].second
+                        key(group.denomination, i) {
+                            BillFace(group.denomination,
+                                Modifier.offset((group.left + i * group.fanStep + group.exposedWidth).dp, group.top.dp)
+                                    .size(group.billHeight.dp, group.billWidth.dp)
+                                    .graphicsLayer {
+                                        transformOrigin = TransformOrigin(0f, 0f)
+                                        rotationZ = 90f + animation.angle.value
+                                        cameraDistance = 10_000.dp.toPx()
+                                        translationX = animation.x.value.dp.toPx()
+                                    }.graphicsLayer {
+                                        transformOrigin = TransformOrigin(0f, 0f)
+                                        rotationX = WalletOpening.ROTATION_X
+                                        cameraDistance = 10_000.dp.toPx()
+                                    }.drawWithContent {
+                                        clipRect(bottom = minOf(size.height * WalletOpening.FACE_FRACTION, group.exposedWidth.dp.toPx() * 2f)) {
+                                            this@drawWithContent.drawContent()
+                                            drawRect(Color.Black.copy(alpha = (i * 0.035f).coerceAtMost(0.28f)))
+                                        }
+                                    }, painter)
+                        }
                     }
+                    index += group.visibleCount
                 }
             }
             groups.forEachIndexed { i, group ->
                 Box(Modifier.rect(pocketBillHitBounds(groups, i)).cashAction("${group.denomination.faceLabel}원 손에 들기", !submitting) {
-                    onToggle(bills.getValue(group.denomination).last().id)
+                    onToggle(bills.getValue(group.denomination).first().id)
                 })
             }
             allCoins.forEachIndexed { index, unit ->

@@ -85,7 +85,7 @@ class WalletOpenGestureTest {
                 // Press the next bill 100ms after the drop. Saving starts 200ms into this hold.
                 advanceTimeBy(100); runCurrent(); frame()
                 val nextPoint = pocketPoint()
-                val nextId = model.ui.value.inWallet.last { it.denomination == W10000 }.id
+                val nextId = model.ui.value.inWallet.first { it.denomination == W10000 }.id
                 press(nextPoint)
                 writes.paused = true
                 advanceTimeBy(200); runCurrent(); frame()
@@ -147,7 +147,7 @@ class WalletOpenGestureTest {
             val after = pocketBillGroups(units.drop(1).groupingBy { it.denomination }.eachCount(), pocket)
             assertNotEquals(before[index].frontLeft, after.first { it.denomination == W10000 }.frontLeft)
             advanceTimeBy(250); runCurrent(); frame()
-            assertEquals(units[2].id, assertNotNull(physics.picked).unit.id)
+            assertEquals(units[1].id, assertNotNull(physics.picked).unit.id)
             scene.sendPointerEvent(PointerEventType.Release, point)
         } finally { scene.close() }
     }

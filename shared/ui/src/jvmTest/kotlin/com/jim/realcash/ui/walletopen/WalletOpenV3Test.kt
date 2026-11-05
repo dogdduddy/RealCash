@@ -121,16 +121,22 @@ class WalletOpenV3Test {
             }
             try {
                 settle()
-                screenshot("v3-open.png")
+                screenshot("v3b-open.png")
                 val layout = WalletOpenLayout.calculate(390f, 844f)
                 val groups = pocketBillGroups(counts, layout.pocket)
-                val billPoint = pocketBillHitBounds(groups, 1).center
+                val front = model.ui.value.inWallet.first { it.denomination == W10000 }
+                // Even the far right back edge picks the left front unit from the whole group hit band.
+                val billPoint = Offset(groups[1].right - 0.5f, pocketBillHitBounds(groups, 1).center.y)
                 pick(billPoint)
-                assertEquals(W10000, model.physics.picked?.unit?.denomination)
+                val picked = assertNotNull(model.physics.picked)
+                assertEquals(front.id, picked.unit.id)
+                assertEquals(groups[1].left, picked.source.left)
+                assertEquals(3, model.ui.value.inWallet.count { it.denomination == W10000 }, "holding preserves the original fan slots")
                 pointer(PointerEventType.Move, Offset(190f, 300f))
                 settle()
-                screenshot("v3-held.png")
+                screenshot("v3b-held.png")
                 drop(layout.wallet.center)
+                assertEquals(picked.source, model.physics.flight?.target, "return to the left front slot")
                 settle()
                 val coinPosition = CoinScatter.place(7, listOf(34f, 34f), layout.coins).first()
                 val coinSource = Offset(coinPosition.x, coinPosition.y)
