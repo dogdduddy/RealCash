@@ -1,0 +1,10 @@
+648bf32a9c20df9a9429d752e6b104d90796bd1c [codex-ui] ui.wallet-open-sway-v2: 열린 지갑 흔들림 v2 — 손가락이 지나는 지폐만 밀렸다 튕기기
+
+ shared/ui/screenshots/w3-sway.png                  | Bin 0 -> 349731 bytes
+ .../com/jim/realcash/ui/walletopen/WalletMotion.kt | 134 +++++++++++++++------
+ .../jim/realcash/ui/walletopen/WalletOpenScreen.kt |   6 +-
+ .../jim/realcash/ui/walletopen/WalletPhysics.kt    |  42 +++++--
+ .../ui/walletopen/WalletOpenScreenshotTest.kt      |  59 +++++++++
+ .../realcash/ui/walletopen/WalletOpenSwayTest.kt   |  86 +++++++++++++
+ .../realcash/ui/walletopen/WalletPhysicsTest.kt    |  42 +++++--
+ 7 files changed, 311 insertions(+), 58 deletions(-)
