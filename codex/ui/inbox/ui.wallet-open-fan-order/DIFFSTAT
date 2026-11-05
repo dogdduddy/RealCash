@@ -1,0 +1,11 @@
+b2a15f30cc001d05f3516a40603f9592ceec0ccf [codex-ui] ui.wallet-open-fan-order: 열린 지갑 지폐 묶음의 겹침 순서를 왼쪽 장이 앞으로
+
+ shared/ui/screenshots/v3b-held.png                 | Bin 0 -> 424666 bytes
+ shared/ui/screenshots/v3b-open.png                 | Bin 0 -> 356248 bytes
+ .../jim/realcash/ui/walletopen/WalletOpenLayout.kt |  13 +++++-
+ .../jim/realcash/ui/walletopen/WalletOpenScreen.kt |  52 +++++++++++----------
+ .../ui/walletopen/WalletOpenGestureTest.kt         |   4 +-
+ .../realcash/ui/walletopen/WalletOpenLayoutTest.kt |  42 +++++++++++++++++
+ .../ui/walletopen/WalletOpenNavigationTest.kt      |   2 +-
+ .../jim/realcash/ui/walletopen/WalletOpenV3Test.kt |  14 ++++--
+ 8 files changed, 94 insertions(+), 33 deletions(-)
