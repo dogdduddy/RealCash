@@ -83,28 +83,57 @@
       "role": "10원 주화 앞면 (다보탑, 구릿빛 신형, 실물풍)"
     },
     "wallet.closed.a": {
-      "path": "assets/img/drawable/wallet_closed.png",
-      "resource": "wallet_closed",
+      "path": "assets/raw/wallet.closed.a-1.png",
       "size": "1024x540",
       "status": "draft",
       "source": "gpt",
       "aiGenerated": true,
-      "role": "홈: 접힌 장지갑(위에서 본 모습). 두께는 코드로 추가"
+      "role": "미채택 — 갈색 장지갑, wallet.closed.b 로 대체 (정리본 제거, 원본만 보관)"
     },
     "wallet.open.a": {
-      "path": "assets/img/drawable/wallet_open.png",
-      "resource": "wallet_open",
+      "path": "assets/raw/wallet.open.a-1.png",
       "size": "640x1024",
       "status": "draft",
       "source": "gpt",
       "aiGenerated": true,
-      "role": "열린 지갑 화면 본체(세로, 입구 위쪽)",
+      "role": "미채택 — 갈색 장지갑, wallet.open.b 로 대체 (정리본 제거, 원본만 보관)",
       "pocket": {
         "$comment": "이미지 전체 크기 대비 비율. 지폐를 꽂을 포켓 안쪽 영역과 입구(윗가장자리) 위치",
         "topFraction": 0.405,
         "leftFraction": 0.037,
         "rightFraction": 0.963,
         "bottomFraction": 0.98
+      }
+    },
+    "wallet.closed.b": {
+      "path": "assets/img/drawable/wallet_closed.png",
+      "resource": "wallet_closed",
+      "size": "1024x945",
+      "status": "draft",
+      "source": "gpt",
+      "aiGenerated": true,
+      "role": "홈: 닫힌 검은 크로스그레인 반지갑, 3/4 시점 제품 사진 구도. 두께 표현 없음"
+    },
+    "wallet.open.b": {
+      "path": "assets/img/drawable/wallet_open.png",
+      "resource": "wallet_open",
+      "size": "640x1518",
+      "status": "draft",
+      "source": "gpt",
+      "aiGenerated": true,
+      "role": "열린 지갑 화면 본체: 반지갑을 세로로 들고 지폐 칸을 벌려 위에서 본 1인칭, 손 없음",
+      "opening": {
+        "$comment": "이미지 전체 크기 대비 비율. 벌어진 칸 입구(아몬드/렌즈 모양)의 안감 영역. top/bottom 은 렌즈 양 끝, left/right 는 세로 중앙(가장 넓은 곳). usable 은 폭이 최대의 70% 이상인 직사각형(지폐 배치 기준). 그림의 좌우 벽은 윗부분에 카드 슬롯 선이 있다",
+        "topFraction": 0.02,
+        "leftFraction": 0.1,
+        "rightFraction": 0.92,
+        "bottomFraction": 0.98,
+        "usable": {
+          "topFraction": 0.15,
+          "leftFraction": 0.17,
+          "rightFraction": 0.83,
+          "bottomFraction": 0.85
+        }
       }
     },
     "tray.a": {

@@ -35,3 +35,8 @@
 - 의뢰서: assets/jobs/done/09~11. 각 1회 생성(62s/60s/74s). 원본 1254x1254 → assets/raw/<id>-1.png
 - 처리: chroma-key --key green(잔여 0%) → fit 1024x540 / 640x1024 / 1024x427 --margin 0.0 → assets/img/drawable/wallet_closed.png, wallet_open.png, tray.png
 - 검수: 글자·로고·손·돈 없음, 가죽·고무 질감 사실적, 포켓 비움. 포켓·트레이 안쪽 좌표(비율)는 manifest.json 에 기록. PASS draft · aiGenerated: true · source: gpt
+
+## wallet.closed.b / wallet.open.b — 검은 크로스그레인 반지갑 (닫힘·열림) (2026-11-05)
+- 의뢰서: assets/jobs/done/12, 13. 각 1회 생성(69s/127s). 원본 1254x1254 → assets/raw/<id>-1.png
+- 처리: chroma-key --key green → fit 1024x945 / 640x1518 --margin 0.0 → assets/img/drawable/wallet_closed.png, wallet_open.png (리소스 이름 유지, 갈색 장지갑 .a 정리본을 덮어씀)
+- 검수: 글자·로고·손·돈·카드 없음. 닫힘은 참고 제품 사진과 같은 3/4 구도·십자 결 질감, 장지갑 아님. 열림은 세로 아몬드 입구가 넓게 벌어진 빈 칸, 왼쪽 벽에 카드 슬롯 선만. 입구 좌표(비율)는 manifest.json wallet.open.b.opening. PASS draft · aiGenerated: true · source: gpt
