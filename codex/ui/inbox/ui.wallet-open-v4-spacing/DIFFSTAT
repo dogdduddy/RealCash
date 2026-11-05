@@ -1,0 +1,12 @@
+60e735654bcb654af806d85ee5a1d29a0711a8d4 [codex-ui] ui.wallet-open-v4-spacing: 열린 지갑 v4 — 권종 머리 간격 24dp, 동전은 오른쪽 세로 한 줄
+
+ shared/ui/screenshots/v4b-30.png                   | Bin 0 -> 488718 bytes
+ shared/ui/screenshots/v4b-open.png                 | Bin 0 -> 525575 bytes
+ .../com/jim/realcash/ui/walletopen/CoinScatter.kt  |  76 +++++++--------------
+ .../jim/realcash/ui/walletopen/WalletOpenLayout.kt |  19 +++---
+ .../jim/realcash/ui/walletopen/WalletOpenScreen.kt |   3 +-
+ .../jim/realcash/ui/walletopen/CoinScatterTest.kt  |  70 ++++++++++++++++++-
+ .../realcash/ui/walletopen/WalletOpenLayoutTest.kt |  22 +++---
+ .../jim/realcash/ui/walletopen/WalletOpenV3Test.kt |   2 +-
+ .../jim/realcash/ui/walletopen/WalletOpenV4Test.kt |   8 +--
+ 9 files changed, 124 insertions(+), 76 deletions(-)
