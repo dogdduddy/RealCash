@@ -25,7 +25,7 @@ import org.jetbrains.skia.EncodedImageFormat
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class WalletOpenV4Test {
-    private val allowance = mapOf(W50000 to 1, W10000 to 3, W5000 to 2, W1000 to 5, C500 to 2)
+    private val allowance = mapOf(W50000 to 1, W10000 to 3, W5000 to 2, W1000 to 5, C500 to 2, C100 to 3, C10 to 2)
     private fun units(counts: Map<Denomination, Int>) = counts.flatMap { (d, n) -> List(n) { i ->
         CashUnit(CashUnitId("$d-$i"), d, CashUnitState.IN_WALLET,
             Instant.parse("2026-11-05T09:00:00Z"), CashUnitSource.ALLOWANCE)
@@ -54,7 +54,7 @@ class WalletOpenV4Test {
             fun settle() { repeat(100) { frame(); runCurrent() } }
             try {
                 settle()
-                val png = save(scene, time, if (w == 390) "v4-open.png" else "v4-open-${w}x$h.png")
+                val png = save(scene, time, if (w == 390) "v4b-open.png" else "v4b-open-${w}x$h.png")
                 assertEquals(w, ImageIO.read(png.inputStream()).width)
                 assertEquals(h, ImageIO.read(png.inputStream()).height)
                 val layout = WalletOpenLayout.calculate(w.toFloat(), h.toFloat())
@@ -78,9 +78,9 @@ class WalletOpenV4Test {
                     assertEquals(cash, ui.value.inWallet)
                 }
                 if (w == 390) {
-                    ui.value = WalletOpenUi(units(mapOf(W10000 to 30)), emptyList(), false)
+                    ui.value = WalletOpenUi(units(mapOf(W10000 to 30, C500 to 2)), emptyList(), false)
                     settle()
-                    save(scene, time, "v4-30.png")
+                    save(scene, time, "v4b-30.png")
                 }
             } finally { scene.close() }
         }

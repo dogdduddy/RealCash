@@ -16,7 +16,7 @@ object WalletOpening {
     const val X = 0.975f
     const val TOP = 0.03f
     const val BOTTOM = 0.97f
-    const val HEAD_STEP = 14f
+    const val HEAD_STEP = 24f
     const val PAPER_STEP = 1.5f
     const val MAX_STACK_OFFSET = 12f
     const val HIT_PADDING = 8f
@@ -66,15 +66,19 @@ data class WalletOpenLayout(val wallet: WalletRect, val pocket: WalletRect, val 
             val wallet = WalletRect(if (landscape) tray.right + 24f else 12f,
                 if (landscape) tray.top else minOf(height - walletHeight - 12f, tray.bottom + 104f), walletWidth, walletHeight)
             // pocket.left is the vertical clipping line, not the hidden left edge of a full note.
+            val coinLeft = width - CoinScatter.EDGE_MARGIN - CoinScatter.MAX_DIAMETER - CoinScatter.JITTER
             val pocket = WalletRect(wallet.left + wallet.width * WalletOpening.X,
                 wallet.top + wallet.height * WalletOpening.TOP,
-                width - 12f - (wallet.left + wallet.width * WalletOpening.X),
+                coinLeft - CoinScatter.GAP - (wallet.left + wallet.width * WalletOpening.X),
                 wallet.height * (WalletOpening.BOTTOM - WalletOpening.TOP))
             val all = pocketBillGroups(Denomination.descending.filter { it.kind == Denomination.Kind.BILL }
                 .associateWith { 30 }, pocket)
-            val coinTop = all.maxOf { it.bottom } + 8f
+            val coinStripLeft = maxOf(wallet.right, all.maxOf { it.right }) + CoinScatter.GAP
+            // Include horizontal jitter in the strip and leave room below for the overflow button.
             return WalletOpenLayout(wallet, pocket, tray, tray.inner(0.05f, 0.13f, 0.95f, 0.90f),
-                WalletRect(wallet.right + 6f, coinTop, width - wallet.right - 18f, height - 4f - coinTop))
+                WalletRect(coinStripLeft, pocket.top,
+                    width - CoinScatter.EDGE_MARGIN + CoinScatter.JITTER - coinStripLeft,
+                    height - 56f - pocket.top))
         }
     }
 }
@@ -83,11 +87,10 @@ data class WalletOpenLayout(val wallet: WalletRect, val pocket: WalletRect, val 
 fun pocketBillGroups(counts: Map<Denomination, Int>, pocket: WalletRect): List<PocketBillGroup> {
     if (pocket.width <= 0f || pocket.height <= 0f) return emptyList()
     val walletHeight = pocket.height / (WalletOpening.BOTTOM - WalletOpening.TOP)
-    // Compact screens reserve a full coin diameter below the bundle, including the deepest stack.
+    // Fit the lowest denomination and its deepest stack inside the pocket. Coins now sit beside it.
     val longest = minOf(walletHeight * 0.8f,
-        (walletHeight * (1f - WalletOpening.TOP) - 3f * WalletOpening.HEAD_STEP -
-            WalletOpening.MAX_STACK_OFFSET - 8f - 34f) / (136f / 154f),
-        (pocket.width - WalletOpening.MAX_STACK_OFFSET - 8f) / 0.55f * Denomination.W50000.billAspectRatio,
+        (pocket.height - 3f * WalletOpening.HEAD_STEP - WalletOpening.MAX_STACK_OFFSET) / (136f / 154f),
+        (pocket.width - WalletOpening.MAX_STACK_OFFSET) / 0.55f * Denomination.W50000.billAspectRatio,
     ).coerceAtLeast(1f)
     val shortEdge = longest / Denomination.W50000.billAspectRatio
     return Denomination.descending.filter { it.kind == Denomination.Kind.BILL }.mapIndexedNotNull { index, d ->
