@@ -209,12 +209,12 @@ fun WalletOpenContent(
                                     .size(group.billHeight.dp, group.billWidth.dp)
                                     .graphicsLayer {
                                         transformOrigin = TransformOrigin(0f, 0f)
-                                        rotationZ = 90f + animation.angle.value
+                                        rotationZ = 90f // Fixed portrait orientation; swipe never rotates around Z.
                                         cameraDistance = 10_000.dp.toPx()
-                                        translationX = animation.x.value.dp.toPx()
+                                        translationX = animation.displacementDp.dp.toPx()
                                     }.graphicsLayer {
                                         transformOrigin = TransformOrigin(0f, 0f)
-                                        rotationX = WalletOpening.ROTATION_X
+                                        rotationX = SwayState.rotationX(animation.displacementDp)
                                         cameraDistance = 10_000.dp.toPx()
                                     }.drawWithContent {
                                         clipRect(bottom = minOf(size.height * WalletOpening.FACE_FRACTION, group.exposedWidth.dp.toPx() * 2f)) {
