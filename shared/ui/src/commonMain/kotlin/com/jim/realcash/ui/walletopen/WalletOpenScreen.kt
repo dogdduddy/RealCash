@@ -240,7 +240,8 @@ fun WalletOpenContent(
         val overflow = coins.filter { it.id !in coinSlots }
         var overflowOpen by remember { mutableStateOf(false) }
         if (overflow.isNotEmpty()) TextButton(onClick = { overflowOpen = true },
-            modifier = Modifier.offset((layout.coins.left - 12f).dp, minOf(layout.coins.bottom, maxHeight.value - 44f).dp)) { Text("+${overflow.size}") }
+            modifier = Modifier.offset((maxWidth.value - 64f).dp, (maxHeight.value - 44f).dp)
+                .size(52.dp, 44.dp)) { Text("+${overflow.size}") }
         if (overflowOpen) AlertDialog(onDismissRequest = { overflowOpen = false }, title = { Text("남은 동전") }, text = {
             Column { overflow.groupBy { it.denomination }.forEach { (d, units) ->
                 TextButton(onClick = { onToggle(units.first().id) }, enabled = !submitting) { Text("${d.faceLabel}원 ×${units.size} · 손에 들기") }

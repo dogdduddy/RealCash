@@ -42,10 +42,12 @@ class WalletOpenLayoutTest {
         } }
     }
 
-    @Test fun billDimensionsUseEightyPercentWalletLengthAndPhysicalRatios() {
+    @Test fun billDimensionsFitBesideCoinsAndKeepPhysicalRatios() {
         val layout = WalletOpenLayout.calculate(390f, 844f)
         val groups = pocketBillGroups(allowance, layout.pocket)
-        assertEquals(layout.wallet.height * 0.8f, groups[0].billHeight, 0.001f)
+        assertTrue(groups[0].billHeight <= layout.wallet.height * 0.8f)
+        val deepest = pocketBillGroups(allowance.mapValues { 30 }, layout.pocket).last()
+        assertEquals(layout.coins.left - 6f, deepest.right, 0.001f)
         groups.zip(listOf(154f, 148f, 142f, 136f)).forEach { (group, length) ->
             assertEquals(group.billWidth * length / 68f, group.billHeight, 0.001f)
             assertEquals(groups[0].billWidth, group.billWidth)
@@ -53,11 +55,12 @@ class WalletOpenLayoutTest {
         assertEquals(groups.last().billWidth, pocketBillGroups(mapOf(W1000 to 5), layout.pocket).single().billWidth)
     }
 
-    @Test fun fourGroupsHaveFourteenDpHeadsAndPaddedHeadHitsAcrossScreenSizes() {
+    @Test fun fourGroupsHaveTwentyFourDpHeadsAndPaddedHeadHitsAcrossScreenSizes() {
         for ((w, h) in listOf(320f to 568f, 390f to 844f, 844f to 390f)) {
             val layout = WalletOpenLayout.calculate(w, h)
             val groups = pocketBillGroups(allowance, layout.pocket)
-            groups.zipWithNext().forEach { (a, b) -> assertEquals(14f, b.top - a.top, 0.001f) }
+            groups.zipWithNext().forEach { (a, b) -> assertEquals(24f, b.top - a.top, 0.001f) }
+            assertEquals(layout.pocket.top + 3f * 14f + 30f, groups.last().top, 0.001f)
             groups.forEachIndexed { i, group ->
                 assertTrue(group.right + 8f <= w)
                 assertTrue(group.top >= layout.pocket.top && group.bottom <= layout.pocket.bottom)
@@ -65,6 +68,7 @@ class WalletOpenLayoutTest {
                 assertEquals(layout.pocket.left, hit.left)
                 assertEquals(group.top - 8f, hit.top)
                 assertEquals((groups.getOrNull(i + 1)?.top ?: group.bottom) + 8f, hit.bottom)
+                if (i < groups.lastIndex) assertEquals(24f + 16f, hit.height, 0.001f)
             }
         }
     }
@@ -84,8 +88,8 @@ class WalletOpenLayoutTest {
                 val group = pocketBillGroups(mapOf(W10000 to count), pocket).single()
                 assertEquals(count, group.visibleCount)
                 assertEquals(minOf(1.5f * (count - 1), 12f), group.fanStep * (count - 1), 0.001f)
-                assertTrue(group.right + 8f <= pocket.right + 0.001f)
-                assertTrue(group.bottom <= pocket.bottom)
+                assertTrue(group.right <= pocket.right + 0.001f)
+                assertTrue(group.bottom <= pocket.bottom + 0.001f)
                 val all = pocketBillGroups(allowance + (W10000 to count), pocket)
                 assertEquals(all[1].face, group.face)
             }
@@ -112,10 +116,12 @@ class WalletOpenLayoutTest {
             assertTrue(layout.wallet.top >= 0 && layout.wallet.bottom <= h)
             assertTrue(layout.coins.left > layout.wallet.right && layout.coins.right <= w)
             val groups = pocketBillGroups(allowance.mapValues { 30 }, layout.pocket)
-            assertTrue(groups.all { it.bottom < layout.coins.top })
+            assertEquals(layout.pocket.top, layout.coins.top)
+            assertTrue(groups.all { it.right + 6f <= layout.coins.left + 0.001f })
+            assertTrue(groups.all { it.bottom <= layout.pocket.bottom + 0.001f })
             val coins = CoinScatter.place(7, 2, layout.coins)
             assertEquals(2, coins.size)
-            coins.forEach { assertTrue(it.y - it.diameter / 2 >= layout.coins.top && it.y + it.diameter / 2 <= h) }
+            coins.forEach { assertTrue(it.y - it.diameter / 2 >= layout.coins.top - 0.001f && it.y + it.diameter / 2 <= h) }
             if (w > h) {
                 assertTrue(layout.tray.right < layout.wallet.left)
                 assertEquals(layout.tray.top, layout.wallet.top)

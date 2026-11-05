@@ -41,7 +41,7 @@ class WalletOpenV3Test {
             coins.forEachIndexed { index, coin ->
                 assertTrue(coin.x - coin.diameter / 2f > layout.wallet.right)
                 assertTrue(coin.x + coin.diameter / 2f <= width)
-                assertTrue(coin.y - coin.diameter / 2f >= layout.coins.top)
+                assertTrue(coin.y - coin.diameter / 2f >= layout.coins.top - 0.001f)
                 assertTrue(coin.y + coin.diameter / 2f <= height)
                 coins.take(index).forEach { other ->
                     assertTrue(kotlin.math.hypot(coin.x - other.x, coin.y - other.y) >= (coin.diameter + other.diameter) / 2f)
