@@ -9,11 +9,11 @@ import androidx.compose.runtime.State
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.util.VelocityTracker
 import com.jim.realcash.domain.model.CashUnit
 import com.jim.realcash.ui.Haptics
 import kotlin.math.abs
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -24,27 +24,104 @@ internal data class CashHit(val unit: CashUnit, val fromTray: Boolean, val hit: 
 
 @Stable
 internal class BillSway(private val scope: CoroutineScope) {
-    val angle = Animatable(0f)
-    val x = Animatable(0f)
+    private val displacement = Animatable(0f)
+    val displacementDp get() = displacement.value
+    private var motion: Job? = null
     private var pending: Job? = null
-    private var angleJob: Job? = null
-    private var xJob: Job? = null
-    private var latest = SwayState.Rest
-    fun push(target: SwayState) {
-        latest = target
-        // Throttle the stagger independently of the springs. Continuous input cannot starve distant bills.
-        if (pending?.isActive == true) return
-        pending = scope.launch { delay(target.delayMillis); animate(latest) }
-    }
-    fun release() {
+    private var held = false
+
+    fun follow(state: SwayState) {
+        held = true
         pending?.cancel()
-        latest = SwayState.Rest
-        animate(latest)
+        motion?.cancel()
+        motion = scope.launch(start = CoroutineStart.UNDISPATCHED) { displacement.snapTo(state.displacementDp) }
     }
-    private fun animate(target: SwayState) {
-        angleJob?.cancel(); xJob?.cancel()
-        angleJob = scope.launch { angle.animateTo(target.rotation, spring(SwayState.DAMPING, SwayState.STIFFNESS)) }
-        xJob = scope.launch { x.animateTo(target.offsetDp, spring(SwayState.DAMPING, SwayState.STIFFNESS)) }
+
+    fun pulse(pulse: SwayPulse) {
+        if (held) return
+        pending?.cancel()
+        pending = scope.launch {
+            delay(pulse.delayMillis)
+            if (!held) {
+                motion?.cancel()
+                motion = scope.launch {
+                    displacement.snapTo(pulse.state.displacementDp)
+                    returnToRest()
+                }
+            }
+        }
+    }
+
+    fun release() {
+        held = false
+        pending?.cancel()
+        motion?.cancel()
+        motion = scope.launch { returnToRest() }
+    }
+
+    private suspend fun returnToRest() {
+        displacement.animateTo(0f, spring(SwayState.DAMPING, SwayState.STIFFNESS))
+    }
+}
+
+/** Pointer-local bookkeeping; no frame state is observed by composition. Geometry stays at rest. */
+internal class BillSwayGesture(private val tick: () -> Unit) {
+    private val ticked = mutableSetOf<BillSway>()
+    private val passed = mutableSetOf<BillSway>()
+    private val held = mutableMapOf<BillSway, Float>()
+    private var direction = 0
+
+    fun move(from: Offset, to: Offset, papers: List<Pair<WalletRect, BillSway>>) {
+        val nextDirection = when {
+            to.x > from.x -> 1
+            to.x < from.x -> -1
+            else -> direction
+        }
+        if (nextDirection == 0) return
+        if (direction != nextDirection) {
+            held.keys.forEach { it.release() }
+            held.clear()
+            passed.clear()
+        }
+        direction = nextDirection
+        val indices = if (direction > 0) papers.indices.toList() else papers.indices.reversed()
+        for (index in indices) {
+            val (strip, animation) = papers[index]
+            val crossed = SwayState.crosses(from, to, strip)
+            if (crossed && ticked.add(animation)) tick()
+            if (!crossed && !strip.contains(to)) ticked.remove(animation)
+            if (!crossed && animation !in held) {
+                passed.remove(animation)
+                continue
+            }
+            if (animation in passed) continue
+            val edge = if (direction > 0) strip.right else strip.left
+            val neighbor = papers.getOrNull(index + direction)?.first
+            val neighborEdge = neighbor?.let { if (direction > 0) it.right else it.left }
+            val clearance = neighborEdge?.let { abs(it - edge) } ?: 11f
+            val contact = SwayState.contact(to.x, direction, strip, clearance)
+            val peak = held[animation]?.let {
+                if (abs(it) > abs(contact.state.displacementDp)) it else contact.state.displacementDp
+            } ?: contact.state.displacementDp
+            // A skipped sample still releases from the maximum displacement, never from zero.
+            animation.follow(contact.state)
+            held[animation] = peak
+            if (contact.released || to.y !in strip.top..strip.bottom) {
+                animation.release()
+                held.remove(animation)
+                passed.add(animation)
+                if (contact.released) SwayState.neighbors(index, direction, papers.size, peak).forEach { pulse ->
+                    papers[pulse.index].second.pulse(pulse)
+                }
+            }
+        }
+    }
+
+    fun release(papers: List<Pair<WalletRect, BillSway>>) {
+        papers.forEach { it.second.release() }
+        held.clear()
+        passed.clear()
+        ticked.clear()
     }
 }
 
@@ -98,36 +175,19 @@ internal fun Modifier.walletGestures(
                 }
             } finally { if (!ended) onRelease(true) }
         } else if (!released && moved && horizontal && (pocket.value.contains(origin) || hit?.fromTray == false)) {
-            val velocity = VelocityTracker()
-            velocity.addPosition(down.uptimeMillis, down.position)
             var previous = origin
-            val ticked = mutableSetOf<BillSway>()
-            val swayed = mutableSetOf<BillSway>()
+            val gesture = BillSwayGesture { haptics.tick() }
             try {
                 while (true) {
                     val change = last
                     if (!change.pressed || change.isConsumed) break
-                    velocity.addPosition(change.uptimeMillis, change.position)
                     val point = change.position / density
-                    val speed = velocity.calculateVelocity().x
-                    val currentSway = sway.value
-                    val currentPocket = pocket.value
-                    currentSway.forEach { (rect, animation) ->
-                        swayed += animation
-                        animation.push(SwayState.target(speed, rect.center.x - point.x, currentPocket.width))
-                    }
-                    // Every exposed paper strip gets one tick per pass, even with skipped pointer samples.
-                    currentSway.forEachIndexed { index, (rect, animation) ->
-                        val right = minOf(rect.right, currentSway.getOrNull(index + 1)?.first?.left ?: rect.right)
-                        val strip = rect.copy(width = (right - rect.left).coerceAtLeast(0f))
-                        if (animation !in ticked && SwayState.crosses(previous, point, strip)) { haptics.tick(); ticked += animation }
-                        if (!strip.contains(point) && !SwayState.crosses(previous, point, strip)) ticked -= animation
-                    }
+                    gesture.move(previous, point, sway.value)
                     previous = point
                     change.consume()
                     last = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: break
                 }
-            } finally { swayed.forEach { it.release() } }
+            } finally { gesture.release(sway.value) }
         }
     }
 }

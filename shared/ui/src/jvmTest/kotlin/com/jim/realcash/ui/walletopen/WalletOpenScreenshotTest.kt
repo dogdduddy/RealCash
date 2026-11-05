@@ -4,6 +4,8 @@ import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.runtime.snapshots.Snapshot
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.material3.Surface
 import androidx.compose.ui.unit.Density
 import com.jim.realcash.data.RealCashData
 import com.jim.realcash.data.db.DriverFactory
@@ -14,11 +16,15 @@ import com.jim.realcash.ui.AppState
 import com.jim.realcash.ui.Haptics
 import com.jim.realcash.ui.RealCashRoot
 import com.jim.realcash.ui.theme.RealCashTheme
+import com.jim.realcash.ui.money.LocalMoneyArt
+import com.jim.realcash.ui.money.ResourceMoneyArt
 import java.io.File
+import javax.imageio.ImageIO
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlin.test.assertNull
 import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlinx.coroutines.CoroutineScope
@@ -31,6 +37,59 @@ import kotlinx.datetime.LocalDate
 import org.jetbrains.skia.EncodedImageFormat
 
 class WalletOpenScreenshotTest {
+    @Test
+    fun w3_frontTenThousandBillFollowsFingerToTheRight() = runBlocking {
+        val driver = DriverFactory().createDriver()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        val clock = object : Clock { override fun now() = Instant.parse("2026-11-04T09:00:00Z") }
+        try {
+            val data = RealCashData(driver, clock, SequentialIdGenerator(), EmptyCoroutineContext)
+            val counts = mapOf(W50000 to 1, W10000 to 3, W5000 to 2, W1000 to 5)
+            data.wallet.receiveAllowance(counts, LocalDate(2026, 11, 1))
+            val model = WalletOpenModel(scope, AppEnvironment(data, Haptics.None, clock = clock), seed = 1)
+            val scene = ImageComposeScene(390, 844, Density(1f), coroutineContext = coroutineContext) {
+                RealCashTheme(darkTheme = false) {
+                    CompositionLocalProvider(LocalMoneyArt provides ResourceMoneyArt) {
+                        Surface { WalletOpenScreen(model, {}, {}) }
+                    }
+                }
+            }
+            try {
+                repeat(40) { scene.render(it * 50_000_000L) }
+                val group = pocketBillGroups(counts, WalletOpenLayout.calculate(390f, 844f).pocket)[1]
+                val front = group.exposedBillBounds(0)
+                val start = Offset(front.left + 1f, front.center.y)
+                val displacement = SwayState.limit(group.fanStep) * 0.8f
+                assertTrue(displacement > 0f)
+                val held = Offset(front.right + displacement, start.y)
+                val before = ImageIO.read(checkNotNull(scene.render(2_000_000_000L)
+                    .encodeToData(EncodedImageFormat.PNG)).bytes.inputStream())
+                scene.sendPointerEvent(PointerEventType.Press, start, timeMillis = 1_000)
+                scene.sendPointerEvent(PointerEventType.Move, held, timeMillis = 1_032)
+                Snapshot.sendApplyNotifications()
+                scene.render(2_016_000_000L)
+                assertNull(model.physics.picked)
+                assertTrue(data.wallet.state.value.inHand.isEmpty())
+                val dir = File(System.getProperty("realcash.screenshotDir") ?: "build/screenshots").apply { mkdirs() }
+                val png = checkNotNull(scene.render(2_032_000_000L).encodeToData(EncodedImageFormat.PNG)).bytes
+                val during = ImageIO.read(png.inputStream())
+                assertEquals(390, during.width)
+                assertEquals(844, during.height)
+                var changedPixels = 0
+                for (y in 0 until during.height) for (x in 0 until during.width) {
+                    if (before.getRGB(x, y) != during.getRGB(x, y)) {
+                        changedPixels++
+                        assertTrue(x >= front.left - 12f && x <= front.right + displacement + 3f,
+                            "only the touched front paper should change, at x=$x")
+                    }
+                }
+                assertTrue(changedPixels > 100, "the screenshot must capture a visibly displaced front paper")
+                File(dir, "w3-sway.png").writeBytes(png)
+                scene.sendPointerEvent(PointerEventType.Release, held, timeMillis = 1_048)
+            } finally { scene.close() }
+        } finally { scope.cancel(); driver.close() }
+    }
+
     @Test
     fun w_longPressBillHeldAboveTray() = runBlocking {
         val driver = DriverFactory().createDriver()
