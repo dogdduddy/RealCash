@@ -1,0 +1,1 @@
+PASS merged afc2ca4 2026-11-05 범위 shared/ui 만(검수용 w3-sway 사본은 머지 뒤 제거), jvmTest 통과. rotationZ 제거, displacement 하나로 translationX·rotationX(60−1.2d, ±12°) 지연 읽기, 손가락에 붙어 밀림(snapTo)·한도 min(10, 이웃−1)·놓이면 0.35/420 복귀, 놓일 때 이웃 1/2·1/4 를 20·40ms 뒤 펄스, 방향 바뀌면 전부 놓음. 참고: 촘촘한 팬 안에서는 한도가 fanStep−1(≈2dp)라 앞장은 거의 안 움직이고 묶음 마지막 장만 10dp 밀림 — 기기 피드백에 따라 '밀린 장이 이웃을 함께 미는' 연쇄 모델로 후속 가능.
