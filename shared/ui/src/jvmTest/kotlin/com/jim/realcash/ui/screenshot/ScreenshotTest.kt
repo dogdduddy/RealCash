@@ -32,6 +32,7 @@ import com.jim.realcash.ui.Screen
 import com.jim.realcash.ui.UiMessages
 import com.jim.realcash.ui.takeout.TakeOutFeedback
 import java.io.File
+import javax.imageio.ImageIO
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -325,9 +326,72 @@ class ScreenshotTest {
     fun r_walletHomeThirtyBills() = runBlocking {
         val data = newData().apply { wallet.receiveAllowance(mapOf(W10000 to 30), periodStart) }
         val app = newAppState(data)
-        assertEquals(30, app.walletHome.ui.value.billCount)
-        assertEquals(6, app.walletHome.ui.value.sideLayers)
-        render("r-wallet-thick") { RealCashRoot(app) }
+        assertEquals(30, data.wallet.state.value.inWallet.size)
+        render("r-wallet-30bills") { RealCashRoot(app) }
+    }
+
+    @Test
+    fun h3_walletSilhouetteStaysIdenticalForEmptyThirtyBillsAndBadges() = runBlocking {
+        val emptyData = newData()
+        val emptyApp = newAppState(emptyData)
+        val thirtyData = newData().apply { wallet.receiveAllowance(mapOf(W10000 to 30), periodStart) }
+        val thirtyApp = newAppState(thirtyData)
+
+        render("h3-home-empty", scale = 1) { RealCashRoot(emptyApp) }
+        render("h3-home-30bills", scale = 1) { RealCashRoot(thirtyApp) }
+        val emptySilhouette = walletSilhouette("h3-home-empty")
+        assertTrue(emptySilhouette.size > 10_000, "the full wallet silhouette must be visible")
+        assertEquals(emptySilhouette, walletSilhouette("h3-home-30bills"), "0 and 30 bills must have the same wallet outline coordinates")
+
+        emptyData.seedPending()
+        render("h3-home-empty-badges", scale = 1) { RealCashRoot(emptyApp) }
+        assertEquals(emptySilhouette, walletSilhouette("h3-home-empty-badges"))
+        // Keep 30 bills in the wallet while showing both badges.
+        thirtyData.wallet.receiveAllowance(mapOf(W10000 to 1), periodStart)
+        thirtyData.seedHand(W10000)
+        thirtyData.seedPending()
+        assertEquals(30, thirtyData.wallet.state.value.inWallet.size)
+        render("h3-home-30bills-badges", scale = 1) { RealCashRoot(thirtyApp) }
+        assertEquals(emptySilhouette, walletSilhouette("h3-home-30bills-badges"), "badges must not move or resize the wallet")
+    }
+
+    /** The wallet is the largest connected dark region; compare actual artwork pixels, not a layout formula. */
+    private fun walletSilhouette(name: String): Set<Int> {
+        val image = ImageIO.read(File(outDir, "$name.png"))
+        assertEquals(WIDTH, image.width)
+        assertEquals(HEIGHT, image.height)
+        val visited = BooleanArray(WIDTH * HEIGHT)
+        var largest = emptySet<Int>()
+        fun dark(index: Int): Boolean {
+            val rgb = image.getRGB(index % WIDTH, index / WIDTH)
+            return ((rgb shr 16) and 255) < 120 && ((rgb shr 8) and 255) < 120 && (rgb and 255) < 120
+        }
+        for (start in visited.indices) {
+            if (visited[start]) continue
+            visited[start] = true
+            if (!dark(start)) continue
+            val region = mutableSetOf(start)
+            val queue = ArrayDeque<Int>().apply { add(start) }
+            while (queue.isNotEmpty()) {
+                val index = queue.removeFirst()
+                val x = index % WIDTH
+                val y = index / WIDTH
+                val neighbors = listOfNotNull(
+                    (index - 1).takeIf { x > 0 }, (index + 1).takeIf { x < WIDTH - 1 },
+                    (index - WIDTH).takeIf { y > 0 }, (index + WIDTH).takeIf { y < HEIGHT - 1 },
+                )
+                for (neighbor in neighbors) {
+                    if (visited[neighbor]) continue
+                    visited[neighbor] = true
+                    if (dark(neighbor)) {
+                        region.add(neighbor)
+                        queue.add(neighbor)
+                    }
+                }
+            }
+            if (region.size > largest.size) largest = region
+        }
+        return largest
     }
 
     @Test
@@ -390,11 +454,12 @@ class ScreenshotTest {
         name: String,
         dark: Boolean = false,
         height: Int = HEIGHT,
+        scale: Int = SCALE,
         midway: (() -> Unit)? = null,
         interact: ((ImageComposeScene) -> Unit)? = null,
         content: @Composable () -> Unit,
     ) {
-        val scene = ImageComposeScene(WIDTH * SCALE, height * SCALE, Density(SCALE.toFloat())) {
+        val scene = ImageComposeScene(WIDTH * scale, height * scale, Density(scale.toFloat())) {
             RealCashTheme(darkTheme = dark, content = content)
         }
         try {

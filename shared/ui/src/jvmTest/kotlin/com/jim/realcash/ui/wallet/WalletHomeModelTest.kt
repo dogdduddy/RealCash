@@ -56,38 +56,31 @@ class WalletHomeModelTest {
     }
 
     @Test
-    fun thicknessBoundariesAndHandBalanceFollowRepositoryState() = runTest {
+    fun handBalanceAndWalletContentsFollowRepositoryState() = runTest {
         val driver = DriverFactory().createDriver()
         try {
             val data = RealCashData(driver, clock, SequentialIdGenerator(), EmptyCoroutineContext)
-            for ((bills, layers) in listOf(0 to 0, 1 to 1, 5 to 1, 6 to 2, 25 to 5, 26 to 6, 30 to 6)) {
-                val empty = WalletHomeUi.from(WalletState.EMPTY, AppSettings.DEFAULT, now, zone, true)
-                assertEquals(layers, empty.copy(billCount = bills).sideLayers)
-            }
             data.wallet.receiveAllowance(mapOf(W10000 to 6, C500 to 2), periodStart)
             data.wallet.moveToHand(data.wallet.state.value.inWallet.filter { it.denomination == W10000 }.take(2).map { it.id })
             val home = WalletHomeUi.from(data.wallet.state.value, AppSettings.DEFAULT, now, zone, true)
             assertEquals(Won(61_000), home.balance)
             assertEquals(Won(20_000), home.handTotal)
-            assertEquals(4, home.billCount)
-            assertEquals(1, home.sideLayers)
             assertFalse(home.walletEmpty)
             data.wallet.returnHand(com.jim.realcash.domain.ledger.ReturnReason.USER)
-            assertEquals(2, WalletHomeUi.from(data.wallet.state.value, AppSettings.DEFAULT, now, zone, true).sideLayers)
+            assertEquals(Won(0), WalletHomeUi.from(data.wallet.state.value, AppSettings.DEFAULT, now, zone, true).handTotal)
         } finally {
             driver.close()
         }
     }
 
     @Test
-    fun coinOnlyWalletIsNonemptyWithoutSideLayers() = runTest {
+    fun coinOnlyWalletIsNonempty() = runTest {
         val driver = DriverFactory().createDriver()
         try {
             val data = RealCashData(driver, clock, SequentialIdGenerator(), EmptyCoroutineContext)
             data.wallet.receiveAllowance(mapOf(C500 to 30), periodStart)
             val home = WalletHomeUi.from(data.wallet.state.value, AppSettings.DEFAULT, now, zone, true)
             assertFalse(home.walletEmpty)
-            assertEquals(0, home.sideLayers)
         } finally {
             driver.close()
         }

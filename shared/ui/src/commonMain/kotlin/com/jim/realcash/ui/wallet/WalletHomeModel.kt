@@ -42,13 +42,9 @@ data class WalletHomeUi(
     /** Domain balance: wallet plus hand. */
     val balance: Won,
     val handTotal: Won,
-    val billCount: Int,
     val walletEmpty: Boolean,
     val pendingCount: Int,
 ) {
-    /** One side layer per five bills, capped at six; coins do not increase bill thickness. */
-    val sideLayers: Int get() = if (billCount == 0) 0 else ((billCount - 1) / 5 + 1).coerceAtMost(6)
-
     companion object {
         /** Uses the domain's period and balance without duplicating budget or money rules. */
         fun from(state: WalletState, settings: AppSettings, now: Instant, timeZone: TimeZone, loaded: Boolean): WalletHomeUi {
@@ -62,7 +58,6 @@ data class WalletHomeUi(
                 daysLeft = today.daysUntil(period.endInclusive),
                 balance = state.balance,
                 handTotal = state.inHand.total(),
-                billCount = state.inWallet.count { it.denomination.kind == Denomination.Kind.BILL },
                 walletEmpty = state.inWallet.isEmpty(),
                 pendingCount = state.pendingPayments.size,
             )

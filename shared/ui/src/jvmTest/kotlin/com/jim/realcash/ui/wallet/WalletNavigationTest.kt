@@ -105,7 +105,7 @@ class WalletNavigationTest {
 
     @Test
     fun emptyWalletAllowanceButtonOpensReceiveAllowance() = withHome(empty = true) { app, scene ->
-        scene.tap(195f, 600f)
+        scene.tap(195f, 658f)
         scene.settle()
         assertEquals(Screen.ReceiveAllowance, app.current)
     }
