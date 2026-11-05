@@ -10,11 +10,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
@@ -106,16 +105,20 @@ fun WalletOpenContent(
         val hits = buildList {
             groups.forEachIndexed { index, group ->
                 add(CashHit(bills.getValue(group.denomination).first(), false, pocketBillHitBounds(groups, index),
-                    WalletRect(group.frontLeft, group.top, group.billWidth, group.billHeight), wallet))
+                    group.face, pocketBillHitBounds(groups, index).let {
+                        it.copy(top = it.top + WalletOpening.HIT_PADDING, height = it.height - 2f * WalletOpening.HIT_PADDING)
+                    }))
             }
             coins.forEach { coin -> coinSlots[coin.id]?.let { add(CashHit(coin, false, it, it)) } }
             ui.inHand.forEach { unit -> traySlots[unit.id]?.let { add(CashHit(unit, true, it, it)) } }
         }
-        val sway = groups.flatMap { group ->
+        val paperAnimations = groups.flatMap { group ->
             (0 until group.visibleCount).map { i ->
-                val animation = key(group.denomination, i) { remember { BillSway(scope) } }
-                group.exposedBillBounds(i) to animation
+                (group.denomination to i) to key(group.denomination, i) { remember { BillSway(scope) } }
             }
+        }.toMap()
+        val sway = visiblePaperBounds(groups).flatMap { (denomination, i, pieces) ->
+            pieces.map { it to paperAnimations.getValue(denomination to i) }
         }
         val currentEnabled = rememberUpdatedState(!submitting)
         val currentHits = rememberUpdatedState(hits)
@@ -180,51 +183,31 @@ fun WalletOpenContent(
                 if (overTray) "여기에 놓으세요" else "돈을 길게 눌러 접시에 놓으세요",
                 style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.85f), textAlign = TextAlign.Center,
                 modifier = Modifier.rect(layout.trayInner).padding(top = (layout.trayInner.height / 2f - 8f).dp))
-            // Clip paper to the reviewed lens; the wallet artwork itself is always drawn whole.
+            // A vertical opening clips only the hidden portion; the wallet art stays whole.
             Box(Modifier.fillMaxSize().drawWithContent {
-                val l = wallet.left.dp.toPx()
-                val t = wallet.top.dp.toPx()
-                val w = wallet.width.dp.toPx()
-                val h = wallet.height.dp.toPx()
-                val midX = (WalletOpening.LEFT + WalletOpening.RIGHT) / 2f
-                val lens = Path().apply {
-                    moveTo(l + w * midX, t + h * WalletOpening.TOP)
-                    quadraticTo(l + w * (2f * WalletOpening.RIGHT - midX), t + h * (WalletOpening.TOP + WalletOpening.BOTTOM) / 2f,
-                        l + w * midX, t + h * WalletOpening.BOTTOM)
-                    quadraticTo(l + w * (2f * WalletOpening.LEFT - midX), t + h * (WalletOpening.TOP + WalletOpening.BOTTOM) / 2f,
-                        l + w * midX, t + h * WalletOpening.TOP)
-                    close()
-                }
-                clipPath(lens) { this@drawWithContent.drawContent() }
+                clipRect(left = layout.pocket.left.dp.toPx(), top = layout.pocket.top.dp.toPx(),
+                    bottom = layout.pocket.bottom.dp.toPx()) { this@drawWithContent.drawContent() }
             }) {
-                var index = 0
                 groups.forEach { group ->
                     val painter = art.painter(group.denomination)
                     val frontPicked = bills.getValue(group.denomination).first().id == pickedId
                     for (i in group.drawOrder(frontPicked)) {
-                        val animation = sway[index + i].second
+                        val animation = paperAnimations.getValue(group.denomination to i)
                         key(group.denomination, i) {
-                            BillFace(group.denomination,
-                                Modifier.offset((group.left + i * group.fanStep + group.exposedWidth).dp, group.top.dp)
-                                    .size(group.billHeight.dp, group.billWidth.dp)
+                            PocketBillArt(group.denomination,
+                                Modifier.offset((group.left + i * group.fanStep + group.billWidth).dp,
+                                    (group.top + i * group.fanStep).dp)
+                                    .requiredSize(group.billHeight.dp, group.billWidth.dp)
                                     .graphicsLayer {
                                         transformOrigin = TransformOrigin(0f, 0f)
-                                        rotationZ = 90f // Fixed portrait orientation; swipe never rotates around Z.
-                                        cameraDistance = 10_000.dp.toPx()
+                                        rotationZ = 90f
                                         translationX = animation.displacementDp.dp.toPx()
-                                    }.graphicsLayer {
-                                        transformOrigin = TransformOrigin(0f, 0f)
-                                        rotationX = SwayState.rotationX(animation.displacementDp)
-                                        cameraDistance = 10_000.dp.toPx()
                                     }.drawWithContent {
-                                        clipRect(bottom = minOf(size.height * WalletOpening.FACE_FRACTION, group.exposedWidth.dp.toPx() * 2f)) {
-                                            this@drawWithContent.drawContent()
-                                            drawRect(Color.Black.copy(alpha = (i * 0.035f).coerceAtMost(0.28f)))
-                                        }
+                                        drawContent()
+                                        drawRect(Color.Black.copy(alpha = 0.12f * i / (group.count - 1).coerceAtLeast(1)))
                                     }, painter)
                         }
                     }
-                    index += group.visibleCount
                 }
             }
             groups.forEachIndexed { i, group ->
@@ -257,7 +240,7 @@ fun WalletOpenContent(
         val overflow = coins.filter { it.id !in coinSlots }
         var overflowOpen by remember { mutableStateOf(false) }
         if (overflow.isNotEmpty()) TextButton(onClick = { overflowOpen = true },
-            modifier = Modifier.offset((layout.coins.left - 12f).dp, layout.coins.bottom.dp)) { Text("+${overflow.size}") }
+            modifier = Modifier.offset((layout.coins.left - 12f).dp, minOf(layout.coins.bottom, maxHeight.value - 44f).dp)) { Text("+${overflow.size}") }
         if (overflowOpen) AlertDialog(onDismissRequest = { overflowOpen = false }, title = { Text("남은 동전") }, text = {
             Column { overflow.groupBy { it.denomination }.forEach { (d, units) ->
                 TextButton(onClick = { onToggle(units.first().id) }, enabled = !submitting) { Text("${d.faceLabel}원 ×${units.size} · 손에 들기") }
@@ -271,6 +254,13 @@ private fun Modifier.rect(rect: WalletRect) = offset(rect.left.dp, rect.top.dp).
 private fun Modifier.cashAction(label: String, enabled: Boolean, action: () -> Unit) = semantics {
     contentDescription = label
     if (enabled) onClick(label) { action(); true }
+}
+
+/** Flat papers share a bundle; per-sheet drop shadows would accumulate into a black border. */
+@Composable
+private fun PocketBillArt(denomination: Denomination, modifier: Modifier, painter: Painter?) {
+    if (painter == null) BillFace(denomination, modifier)
+    else Image(painter, "${denomination.faceLabel}원", modifier, contentScale = ContentScale.Fit)
 }
 
 @Composable

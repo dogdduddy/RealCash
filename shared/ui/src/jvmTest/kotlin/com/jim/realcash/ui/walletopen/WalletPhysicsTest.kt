@@ -14,40 +14,32 @@ class WalletPhysicsTest {
     private val wallet = WalletRect(20f, 300f, 220f, 400f)
     private val source = WalletRect(40f, 340f, 60f, 140f)
 
-    @Test fun fingerFollowsTheLeadingEdgeAndReleasesOnlyBeyondClearance() {
-        val strip = WalletRect(40f, 100f, 20f, 30f)
-        assertEquals(SwayContact(SwayState.Rest, false), SwayState.contact(50f, 1, strip, 8f))
-        assertEquals(SwayContact(SwayState(4f), false), SwayState.contact(64f, 1, strip, 8f))
-        assertEquals(SwayContact(SwayState(7f), false), SwayState.contact(67f, 1, strip, 8f))
-        assertEquals(SwayContact(SwayState(7f), true), SwayState.contact(68f, 1, strip, 8f))
-        assertEquals(SwayContact(SwayState(-4f), false), SwayState.contact(36f, -1, strip, 8f))
-        assertEquals(SwayContact(SwayState(-7f), true), SwayState.contact(32f, -1, strip, 8f))
-        assertEquals(SwayContact(SwayState(10f), true), SwayState.contact(100f, 1, strip, 40f))
-        assertEquals(SwayContact(SwayState.Rest, true), SwayState.contact(61f, 1, strip, 0.5f))
-        assertEquals(0f, SwayState.limit(1f))
-        assertEquals(10f, SwayState.limit(100f))
+    @Test fun outwardMotionStopsAtEightDpAndInwardMotionAtTwoDp() {
+        assertEquals(SwayState.Rest, SwayState.slide(0f))
+        assertEquals(SwayState(4f), SwayState.slide(4f))
+        assertEquals(SwayState(8f), SwayState.slide(100f))
+        assertEquals(SwayState(-2f), SwayState.slide(-100f))
         assertEquals(0.35f, SwayState.DAMPING)
         assertEquals(420f, SwayState.STIFFNESS)
     }
 
-    @Test fun displacementTiltsAroundXWithTwelveDegreeLimit() {
-        assertEquals(60f, SwayState.rotationX(0f))
-        assertEquals(54f, SwayState.rotationX(5f))
-        assertEquals(66f, SwayState.rotationX(-5f))
-        assertEquals(48f, SwayState.rotationX(10f))
-        assertEquals(72f, SwayState.rotationX(-10f))
-        assertEquals(48f, SwayState.rotationX(100f))
-        assertEquals(72f, SwayState.rotationX(-100f))
+    @Test fun pickupKeepsFullPhysicalFaceBeyondTheVisibleStrip() {
+        val group = pocketBillGroups(mapOf(Denomination.W10000 to 30), WalletOpenLayout.calculate(390f, 844f).pocket).single()
+        val pick = PickState(bill, false, group.face, group.face.center)
+        assertEquals(group.billHeight, pick.faceWidth)
+        assertEquals(group.billWidth, pick.faceHeight)
+        assertEquals(90f, pick.rotation)
+        assertTrue(group.exposedWidth < pick.faceHeight)
     }
 
-    @Test fun onlyTwoNeighborsReceiveHalfAndQuarterWithStagger() {
-        assertEquals(listOf(SwayPulse(3, SwayState(4f), 20), SwayPulse(4, SwayState(2f), 40)),
-            SwayState.neighbors(2, 1, 6, 8f))
-        assertEquals(listOf(SwayPulse(1, SwayState(-4f), 20), SwayPulse(0, SwayState(-2f), 40)),
-            SwayState.neighbors(2, -1, 6, -8f))
-        assertEquals(listOf(SwayPulse(5, SwayState(4f), 20)), SwayState.neighbors(4, 1, 6, 8f))
-        assertTrue(SwayState.neighbors(5, 1, 6, 8f).isEmpty())
-        assertTrue(SwayState.neighbors(0, -1, 6, -8f).isEmpty())
+    @Test fun fastSweepIntersectsEveryThinBackEdgeInBothDirections() {
+        val group = pocketBillGroups(mapOf(Denomination.W10000 to 30), WalletOpenLayout.calculate(390f, 844f).pocket).single()
+        val pieces = visiblePaperBounds(listOf(group)).flatMap { it.third }
+        val y = group.top + group.billHeight / 2f
+        val left = Offset(group.openingX, y)
+        val right = Offset(group.right + 1f, y)
+        assertEquals(30, pieces.count { SwayState.crosses(left, right, it) })
+        assertEquals(30, pieces.count { SwayState.crosses(right, left, it) })
     }
 
     @Test fun fastSwipeCrossesNarrowStripsButNotLeather() {

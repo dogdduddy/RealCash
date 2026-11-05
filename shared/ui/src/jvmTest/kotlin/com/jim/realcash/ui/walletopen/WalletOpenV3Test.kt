@@ -51,32 +51,25 @@ class WalletOpenV3Test {
     }
 
     @Test
-    fun onlyExposedPaperInsideTheLensCanBePicked() {
+    fun onlyExposedHeadsAndTopFaceCanBePicked() {
         val layout = WalletOpenLayout.calculate(390f, 844f)
         val groups = pocketBillGroups(mapOf(W50000 to 1, W10000 to 3, W5000 to 2, W1000 to 5), layout.pocket)
         groups.forEachIndexed { index, group ->
-            val unit = CashUnit(
-                CashUnitId("hit-$index"), group.denomination,
-                CashUnitState.IN_WALLET, Instant.parse("2026-11-05T09:00:00Z"),
-                CashUnitSource.ALLOWANCE,
-            )
-            val hit = CashHit(unit, false, pocketBillHitBounds(groups, index),
-                WalletRect(group.frontLeft, group.top, group.billWidth, group.billHeight), layout.wallet)
+            val unit = CashUnit(CashUnitId("hit-$index"), group.denomination, CashUnitState.IN_WALLET,
+                Instant.parse("2026-11-05T09:00:00Z"), CashUnitSource.ALLOWANCE)
+            val hit = CashHit(unit, false, pocketBillHitBounds(groups, index), group.face)
             assertTrue(hit.contains(hit.hit.center))
-            assertFalse(hit.contains(Offset(group.right + 1f, hit.hit.center.y)), "the group gap is not paper")
-            assertFalse(hit.contains(Offset(group.left + 1f, layout.wallet.top)), "the lens tips and walls are not paper")
+            assertFalse(hit.contains(Offset(group.openingX - 1f, hit.hit.center.y)))
+            assertFalse(hit.contains(Offset(group.right + 1f, hit.hit.center.y)))
+            if (index < groups.lastIndex) assertFalse(hit.contains(Offset(group.openingX + 1f, group.face.center.y)))
         }
-        val first = groups.first()
-        val outsideLens = Offset(first.left + 1f, first.top + 1f)
-        assertTrue(pocketBillHitBounds(groups, 0).contains(outsideLens))
-        assertFalse(WalletOpening.contains(layout.wallet, outsideLens), "clipped paper corners must reject pickup")
     }
 
     @Test
     fun floorDropsExcludeArtEdgesAndOtherCoins() {
         val layout = WalletOpenLayout.calculate(390f, 844f)
         val floor = WalletRect(0f, 56f, 390f, 788f)
-        val left = Offset(40f, 600f)
+        val left = Offset(40f, 300f)
         val target = assertNotNull(floorCoinTarget(left, 34f, floor, layout.wallet, layout.tray, emptyList()))
         assertEquals(left, target.center)
         assertNull(floorCoinTarget(layout.wallet.center, 34f, floor, layout.wallet, layout.tray, emptyList()))
@@ -126,7 +119,7 @@ class WalletOpenV3Test {
                 val groups = pocketBillGroups(counts, layout.pocket)
                 val front = model.ui.value.inWallet.first { it.denomination == W10000 }
                 // Even the far right back edge picks the left front unit from the whole group hit band.
-                val billPoint = Offset(groups[1].right - 0.5f, pocketBillHitBounds(groups, 1).center.y)
+                val billPoint = Offset(groups[1].openingX + 2f, groups[1].top + 3f)
                 pick(billPoint)
                 val picked = assertNotNull(model.physics.picked)
                 assertEquals(front.id, picked.unit.id)
@@ -142,7 +135,7 @@ class WalletOpenV3Test {
                 val coinSource = Offset(coinPosition.x, coinPosition.y)
                 pick(coinSource)
                 val coinId = assertNotNull(model.physics.picked).unit.id
-                val left = Offset(40f, 600f)
+                val left = Offset(40f, 300f)
                 drop(left)
                 assertEquals(left, model.physics.flight?.target?.center)
                 settle()

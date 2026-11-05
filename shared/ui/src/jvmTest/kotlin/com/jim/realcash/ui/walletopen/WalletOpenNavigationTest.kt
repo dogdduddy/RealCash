@@ -61,7 +61,7 @@ class WalletOpenNavigationTest {
                 settle()
                 val layout = WalletOpenLayout.calculate(390f, 844f)
                 val group = pocketBillGroups(mapOf(W50000 to 1, W10000 to 3, W5000 to 1, W1000 to 1), layout.pocket)[1]
-                val point = Offset(group.left + 1.5f, group.top + group.exposedHeight / 2)
+                val point = Offset(group.openingX + 2f, group.top + 3f)
                 val frontId = data.wallet.state.value.inWallet.first { it.denomination == W10000 }.id
                 // A short tap and a leather long press cannot take paper out.
                 tap(point)

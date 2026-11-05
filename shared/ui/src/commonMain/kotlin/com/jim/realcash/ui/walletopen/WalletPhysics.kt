@@ -12,37 +12,16 @@ import com.jim.realcash.ui.Haptics
 /** Local default until the platform haptics API gains a dedicated selection tick. */
 fun Haptics.tick() = tap()
 
-/** One signed, density-independent displacement drives both deferred layer transforms. */
+/** Signed, density-independent translation; the paper stays flat throughout the gesture. */
 data class SwayState(val displacementDp: Float) {
     companion object {
         const val DAMPING = 0.35f
         const val STIFFNESS = 420f
         val Rest = SwayState(0f)
 
-        fun rotationX(displacementDp: Float): Float =
-            WalletOpening.ROTATION_X - (displacementDp * 1.2f).coerceIn(-12f, 12f)
-
-        fun limit(neighborDistanceDp: Float): Float =
-            minOf(10f, (neighborDistanceDp - 1f).coerceAtLeast(0f))
-
-        /** The leading edge sticks to the finger until the inter-paper clearance is exhausted. */
-        fun contact(fingerX: Float, direction: Int, strip: WalletRect, neighborDistanceDp: Float): SwayContact {
-            require(direction == -1 || direction == 1)
-            val edge = if (direction > 0) strip.right else strip.left
-            val travel = ((fingerX - edge) * direction).coerceAtLeast(0f)
-            val limit = limit(neighborDistanceDp)
-            return SwayContact(SwayState(minOf(travel, limit) * direction), travel > limit)
-        }
-
-        /** Only the next two papers in the swipe direction receive a pulse, across group boundaries too. */
-        fun neighbors(index: Int, direction: Int, count: Int, peakDp: Float): List<SwayPulse> {
-            require(direction == -1 || direction == 1)
-            return (1..2).mapNotNull { distance ->
-                val neighbor = index + distance * direction
-                if (neighbor !in 0 until count) null
-                else SwayPulse(neighbor, SwayState(peakDp / (1 shl distance)), distance * 20L)
-            }
-        }
+        const val MAX_OUTWARD = 8f
+        const val MAX_INWARD = 2f
+        fun slide(travelDp: Float) = SwayState(travelDp.coerceIn(-MAX_INWARD, MAX_OUTWARD))
 
         /** Includes fast swipes which cross a narrow strip between two pointer events. */
         fun crosses(from: Offset, to: Offset, strip: WalletRect): Boolean {
@@ -66,9 +45,6 @@ data class SwayState(val displacementDp: Float) {
         }
     }
 }
-
-data class SwayContact(val state: SwayState, val released: Boolean)
-data class SwayPulse(val index: Int, val state: SwayState, val delayMillis: Long)
 
 fun WalletRect.contains(point: Offset) = point.x >= left && point.x <= right && point.y >= top && point.y <= bottom
 val WalletRect.center get() = Offset(left + width / 2f, top + height / 2f)
