@@ -40,3 +40,8 @@
 - 의뢰서: assets/jobs/done/12, 13. 각 1회 생성(69s/127s). 원본 1254x1254 → assets/raw/<id>-1.png
 - 처리: chroma-key --key green → fit 1024x945 / 640x1518 --margin 0.0 → assets/img/drawable/wallet_closed.png, wallet_open.png (리소스 이름 유지, 갈색 장지갑 .a 정리본을 덮어씀)
 - 검수: 글자·로고·손·돈·카드 없음. 닫힘은 참고 제품 사진과 같은 3/4 구도·십자 결 질감, 장지갑 아님. 열림은 세로 아몬드 입구가 넓게 벌어진 빈 칸, 왼쪽 벽에 카드 슬롯 선만. 입구 좌표(비율)는 manifest.json wallet.open.b.opening. PASS draft · aiGenerated: true · source: gpt
+
+## wallet.open.c — 눕혀 펼친 검은 반지갑 (열린 지갑 v4 본체) (2026-11-05)
+- 의뢰서: assets/jobs/done/14. 1회 생성(124s). 원본 1254x1254 → assets/raw/wallet.open.c-1.png
+- 처리: chroma-key --key green → fit 640x1230 --margin 0.0 → assets/img/drawable/wallet_open.png (리소스 이름 유지, wallet.open.b 정리본을 덮어씀)
+- 검수: 글자·로고·손·돈·카드 없음. 세로 평면 구도, 접힘선 가로, 위 절반 매끈, 아래 절반 슬롯 절개선 2줄. 오른쪽 가장자리 입구 틈(열 밝기 프로필로 x 비율 0.971~0.981 확인) 좌표는 manifest.json wallet.open.c.opening. PASS draft · aiGenerated: true · source: gpt
