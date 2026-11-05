@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -89,31 +88,34 @@ fun WalletHomeContent(
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Spacer(Modifier.height(88.dp))
-            FlowRow(
-                Modifier.fillMaxWidth(0.86f).heightIn(min = 48.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                if (ui.pendingCount > 0) {
-                    Surface(
-                        onClick = onOpenPending, enabled = enabled,
-                        color = MaterialTheme.colorScheme.tertiaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-                        shape = MaterialTheme.shapes.large,
-                    ) { Text(Strings.pendingBadge(ui.pendingCount), Modifier.padding(horizontal = 14.dp, vertical = 12.dp), style = MaterialTheme.typography.labelLarge) }
-                }
-                if (ui.handTotal.value > 0) {
-                    Text(
-                        Strings.handBadge(ui.handTotal.formatted()),
-                        Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+            Spacer(Modifier.height(40.dp))
+            // Reserve two badge rows even when empty, so badges never move the wallet.
+            Box(Modifier.fillMaxWidth(0.86f).height(96.dp), contentAlignment = Alignment.BottomCenter) {
+                FlowRow(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    if (ui.pendingCount > 0) {
+                        Surface(
+                            onClick = onOpenPending, enabled = enabled,
+                            color = MaterialTheme.colorScheme.tertiaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                            shape = MaterialTheme.shapes.large,
+                        ) { Text(Strings.pendingBadge(ui.pendingCount), Modifier.padding(horizontal = 14.dp, vertical = 12.dp), style = MaterialTheme.typography.labelLarge) }
+                    }
+                    if (ui.handTotal.value > 0) {
+                        Text(
+                            Strings.handBadge(ui.handTotal.formatted()),
+                            Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
             Spacer(Modifier.height(12.dp))
-            ClosedWallet(ui.sideLayers, opening, ui.loaded && enabled, onOpenWallet, Modifier.fillMaxWidth(0.86f))
+            ClosedWallet(opening, ui.loaded && enabled, onOpenWallet, Modifier.fillMaxWidth(0.70f))
             if (ui.loaded && ui.walletEmpty) {
                 Spacer(Modifier.height(30.dp))
                 Button(onClick = onReceiveAllowance, enabled = enabled, modifier = Modifier.fillMaxWidth(0.72f).height(56.dp)) {
