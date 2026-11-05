@@ -15,11 +15,10 @@ import kotlin.math.abs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-internal data class CashHit(val unit: CashUnit, val fromTray: Boolean, val hit: WalletRect, val face: WalletRect, val lens: WalletRect? = null) {
-    fun contains(point: Offset) = hit.contains(point) && (lens == null || WalletOpening.contains(lens, point))
+internal data class CashHit(val unit: CashUnit, val fromTray: Boolean, val hit: WalletRect, val face: WalletRect, val visible: WalletRect = hit) {
+    fun contains(point: Offset) = hit.contains(point)
 }
 
 @Stable
@@ -27,34 +26,13 @@ internal class BillSway(private val scope: CoroutineScope) {
     private val displacement = Animatable(0f)
     val displacementDp get() = displacement.value
     private var motion: Job? = null
-    private var pending: Job? = null
-    private var held = false
 
     fun follow(state: SwayState) {
-        held = true
-        pending?.cancel()
         motion?.cancel()
         motion = scope.launch(start = CoroutineStart.UNDISPATCHED) { displacement.snapTo(state.displacementDp) }
     }
 
-    fun pulse(pulse: SwayPulse) {
-        if (held) return
-        pending?.cancel()
-        pending = scope.launch {
-            delay(pulse.delayMillis)
-            if (!held) {
-                motion?.cancel()
-                motion = scope.launch {
-                    displacement.snapTo(pulse.state.displacementDp)
-                    returnToRest()
-                }
-            }
-        }
-    }
-
     fun release() {
-        held = false
-        pending?.cancel()
         motion?.cancel()
         motion = scope.launch { returnToRest() }
     }
@@ -67,60 +45,27 @@ internal class BillSway(private val scope: CoroutineScope) {
 /** Pointer-local bookkeeping; no frame state is observed by composition. Geometry stays at rest. */
 internal class BillSwayGesture(private val tick: () -> Unit) {
     private val ticked = mutableSetOf<BillSway>()
-    private val passed = mutableSetOf<BillSway>()
-    private val held = mutableMapOf<BillSway, Float>()
-    private var direction = 0
+    private val anchors = mutableMapOf<BillSway, Float>()
 
     fun move(from: Offset, to: Offset, papers: List<Pair<WalletRect, BillSway>>) {
-        val nextDirection = when {
-            to.x > from.x -> 1
-            to.x < from.x -> -1
-            else -> direction
-        }
-        if (nextDirection == 0) return
-        if (direction != nextDirection) {
-            held.keys.forEach { it.release() }
-            held.clear()
-            passed.clear()
-        }
-        direction = nextDirection
-        val indices = if (direction > 0) papers.indices.toList() else papers.indices.reversed()
-        for (index in indices) {
-            val (strip, animation) = papers[index]
-            val crossed = SwayState.crosses(from, to, strip)
-            if (crossed && ticked.add(animation)) tick()
-            if (!crossed && !strip.contains(to)) ticked.remove(animation)
-            if (!crossed && animation !in held) {
-                passed.remove(animation)
-                continue
-            }
-            if (animation in passed) continue
-            val edge = if (direction > 0) strip.right else strip.left
-            val neighbor = papers.getOrNull(index + direction)?.first
-            val neighborEdge = neighbor?.let { if (direction > 0) it.right else it.left }
-            val clearance = neighborEdge?.let { abs(it - edge) } ?: 11f
-            val contact = SwayState.contact(to.x, direction, strip, clearance)
-            val peak = held[animation]?.let {
-                if (abs(it) > abs(contact.state.displacementDp)) it else contact.state.displacementDp
-            } ?: contact.state.displacementDp
-            // A skipped sample still releases from the maximum displacement, never from zero.
-            animation.follow(contact.state)
-            held[animation] = peak
-            if (contact.released || to.y !in strip.top..strip.bottom) {
-                animation.release()
-                held.remove(animation)
-                passed.add(animation)
-                if (contact.released) SwayState.neighbors(index, direction, papers.size, peak).forEach { pulse ->
-                    papers[pulse.index].second.pulse(pulse)
+        if (to.x == from.x) return
+        papers.groupBy({ it.second }, { it.first }).forEach { (animation, pieces) ->
+            val contact = pieces.firstOrNull { SwayState.crosses(from, to, it) }
+            if (contact != null) {
+                if (ticked.add(animation)) tick()
+                val anchor = anchors.getOrPut(animation) { from.x.coerceIn(contact.left, contact.right) }
+                animation.follow(SwayState.slide(to.x - anchor))
+                if (pieces.none { it.contains(to) }) {
+                    animation.release()
+                    anchors.remove(animation)
                 }
-            }
+            } else if (anchors.remove(animation) != null) animation.release()
         }
     }
 
     fun release(papers: List<Pair<WalletRect, BillSway>>) {
-        papers.forEach { it.second.release() }
-        held.clear()
-        passed.clear()
+        papers.map { it.second }.distinct().forEach { it.release() }
+        anchors.clear()
         ticked.clear()
     }
 }
@@ -141,7 +86,8 @@ internal fun Modifier.walletGestures(
         // Saving blocks only new gestures; a gesture already in progress keeps its owner.
         if (!enabled.value) return@awaitEachGesture
         val origin = down.position / density
-        val hit = hits.value.lastOrNull { it.contains(origin) }
+        val hit = hits.value.lastOrNull { it.visible.contains(origin) }
+            ?: hits.value.lastOrNull { it.contains(origin) }
         if (physics.picked != null || (hit == null && !pocket.value.contains(origin))) return@awaitEachGesture
         var last = down
         var released = false

@@ -34,6 +34,26 @@ class CoinScatterTest {
     }
 
     @Test
+    fun compactFloorFitsFourCoinsEvenWhenRandomChoicesWouldJamTheRow() {
+        for ((w, h) in listOf(320f to 568f, 844f to 390f)) {
+            val area = WalletOpenLayout.calculate(w, h).coins
+            repeat(100) { seed ->
+                val coins = CoinScatter.place(seed, listOf(34f, 34f, 28f, 24f), area)
+                assertEquals(4, coins.size)
+                coins.forEachIndexed { i, coin ->
+                    assertTrue(coin.x - coin.diameter / 2f >= area.left)
+                    assertTrue(coin.x + coin.diameter / 2f <= area.right)
+                    assertTrue(coin.y - coin.diameter / 2f >= area.top)
+                    assertTrue(coin.y + coin.diameter / 2f <= area.bottom)
+                    coins.take(i).forEach { other ->
+                        assertTrue(hypot(coin.x - other.x, coin.y - other.y) >= (coin.diameter + other.diameter) / 2f)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
     fun overcrowdedAndTooSmallAreasReturnOnlySafePlacements() {
         assertTrue(CoinScatter.place(1, 10, WalletRect(0f, 0f, 20f, 20f)).isEmpty())
         val coins = CoinScatter.place(1, 100, WalletRect(0f, 0f, 40f, 40f))

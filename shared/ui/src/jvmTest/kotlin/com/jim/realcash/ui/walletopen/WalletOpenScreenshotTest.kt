@@ -38,7 +38,7 @@ import org.jetbrains.skia.EncodedImageFormat
 
 class WalletOpenScreenshotTest {
     @Test
-    fun w3_frontTenThousandBillFollowsFingerToTheRight() = runBlocking {
+    fun v4_frontTenThousandBillFollowsFingerToTheRight() = runBlocking {
         val driver = DriverFactory().createDriver()
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
         val clock = object : Clock { override fun now() = Instant.parse("2026-11-04T09:00:00Z") }
@@ -57,9 +57,9 @@ class WalletOpenScreenshotTest {
             try {
                 repeat(40) { scene.render(it * 50_000_000L) }
                 val group = pocketBillGroups(counts, WalletOpenLayout.calculate(390f, 844f).pocket)[1]
-                val front = group.exposedBillBounds(0)
+                val front = pocketBillHitBounds(pocketBillGroups(counts, WalletOpenLayout.calculate(390f, 844f).pocket), 1)
                 val start = Offset(front.left + 1f, front.center.y)
-                val displacement = SwayState.limit(group.fanStep) * 0.8f
+                val displacement = SwayState.MAX_OUTWARD * 0.8f
                 assertTrue(displacement > 0f)
                 val held = Offset(front.right + displacement, start.y)
                 val before = ImageIO.read(checkNotNull(scene.render(2_000_000_000L)
@@ -79,7 +79,7 @@ class WalletOpenScreenshotTest {
                 for (y in 0 until during.height) for (x in 0 until during.width) {
                     if (before.getRGB(x, y) != during.getRGB(x, y)) {
                         changedPixels++
-                        assertTrue(x >= front.left - 12f && x <= front.right + displacement + 3f,
+                        assertTrue(x >= front.left - 12f && x <= front.right + 8f + 8f,
                             "only the touched front paper should change, at x=$x")
                     }
                 }
@@ -106,7 +106,7 @@ class WalletOpenScreenshotTest {
                 repeat(40) { scene.render(it * 50_000_000L) }
                 val layout = WalletOpenLayout.calculate(390f, 844f)
                 val group = pocketBillGroups(counts, layout.pocket)[1]
-                val start = Offset(group.left + 2f, group.top + group.exposedHeight / 2f)
+                val start = Offset(group.openingX + 2f, group.top + 3f)
                 scene.sendPointerEvent(PointerEventType.Press, start * 2f)
                 delay(450)
                 scene.render(2_050_000_000L)

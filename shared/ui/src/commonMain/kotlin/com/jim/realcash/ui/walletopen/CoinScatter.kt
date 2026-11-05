@@ -31,7 +31,42 @@ object CoinScatter {
             }
             candidate?.let(placed::add)
         }
-        return placed
+        if (placed.size == diameters.size) return placed
+        // A narrow floor can be jammed by early random choices even when every coin fits.
+        // Pack rows as a deterministic fallback, keeping a seeded offset and individual rotation.
+        val rows = mutableListOf<MutableList<Pair<Int, Float>>>()
+        var row = mutableListOf<Pair<Int, Float>>()
+        var rowWidth = 0f
+        var usedHeight = 0f
+        diameters.withIndex().sortedByDescending { it.value }.forEach { (index, diameter) ->
+            if (diameter > area.width || diameter > area.height) return@forEach
+            if (row.isNotEmpty() && rowWidth + 1f + diameter > area.width) {
+                usedHeight += row.maxOf { it.second } + 1f
+                rows += row
+                row = mutableListOf()
+                rowWidth = 0f
+            }
+            if (usedHeight + diameter <= area.height) {
+                if (row.isNotEmpty()) rowWidth += 1f
+                row += index to diameter
+                rowWidth += diameter
+            }
+        }
+        if (row.isNotEmpty()) rows += row
+        if (rows.sumOf { it.size } <= placed.size) return placed
+        val height = rows.sumOf { it.maxOf { coin -> coin.second }.toDouble() }.toFloat() + (rows.size - 1)
+        var y = area.top + random.nextFloat() * (area.height - height).coerceAtLeast(0f)
+        return rows.flatMap { coins ->
+            val rowHeight = coins.maxOf { it.second }
+            val width = coins.sumOf { it.second.toDouble() }.toFloat() + (coins.size - 1)
+            var x = area.left + random.nextFloat() * (area.width - width).coerceAtLeast(0f)
+            val result = coins.map { (index, diameter) ->
+                ScatteredCoin(index, x + diameter / 2f, y + rowHeight / 2f, diameter, random.nextFloat() * 360f)
+                    .also { x += diameter + 1f }
+            }
+            y += rowHeight + 1f
+            result
+        }.sortedBy { it.index }
     }
 }
 

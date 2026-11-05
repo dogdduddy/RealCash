@@ -64,10 +64,11 @@ class WalletOpenGestureTest {
             try {
                 repeat(40) { frame(); runCurrent() }
                 val layout = WalletOpenLayout.calculate(390f, 844f)
-                fun pocketPoint() = pocketBillGroups(
-                    model.ui.value.inWallet.filter { it.denomination.kind == Denomination.Kind.BILL }
-                        .groupingBy { it.denomination }.eachCount(), layout.pocket,
-                ).first { it.denomination == W10000 }.let { Offset(it.frontLeft + 2f, it.top + it.exposedHeight / 2f) }
+                fun pocketPoint(): Offset {
+                    val groups = pocketBillGroups(model.ui.value.inWallet.filter { it.denomination.kind == Denomination.Kind.BILL }
+                        .groupingBy { it.denomination }.eachCount(), layout.pocket)
+                    return pocketBillHitBounds(groups, groups.indexOfFirst { it.denomination == W10000 }).center
+                }
 
                 // The first bill is really picked up and dropped, starting the 300ms save debounce.
                 val firstPoint = pocketPoint()
@@ -145,7 +146,7 @@ class WalletOpenGestureTest {
             ui.value = WalletOpenUi(units.drop(1), units.take(1), true)
             frame(); runCurrent(); frame()
             val after = pocketBillGroups(units.drop(1).groupingBy { it.denomination }.eachCount(), pocket)
-            assertNotEquals(before[index].frontLeft, after.first { it.denomination == W10000 }.frontLeft)
+            assertEquals(before[index].face, after.first { it.denomination == W10000 }.face, "removing another denomination must not reflow this note")
             advanceTimeBy(250); runCurrent(); frame()
             assertEquals(units[1].id, assertNotNull(physics.picked).unit.id)
             scene.sendPointerEvent(PointerEventType.Release, point)
@@ -171,7 +172,7 @@ class WalletOpenGestureTest {
         try {
             repeat(10) { frame(); runCurrent() }
             val group = pocketBillGroups(mapOf(W10000 to 1), WalletOpenLayout.calculate(390f, 844f).pocket).single()
-            val point = Offset(group.frontLeft + 2f, group.top + group.exposedHeight / 2f)
+            val point = Offset(group.openingX + 2f, group.top + group.exposedHeight / 2f)
             scene.sendPointerEvent(PointerEventType.Press, point)
             advanceTimeBy(200); runCurrent()
             submitting.value = false
