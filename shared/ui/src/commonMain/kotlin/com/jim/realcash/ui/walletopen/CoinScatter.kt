@@ -34,3 +34,20 @@ object CoinScatter {
         return placed
     }
 }
+
+/** A floor drop preserves its exact centre, or springs back if it hits art, an edge or another coin. */
+internal fun floorCoinTarget(
+    pointer: androidx.compose.ui.geometry.Offset,
+    diameter: Float,
+    floor: WalletRect,
+    wallet: WalletRect,
+    tray: WalletRect,
+    occupied: List<WalletRect>,
+): WalletRect? {
+    val target = WalletRect(pointer.x - diameter / 2f, pointer.y - diameter / 2f, diameter, diameter)
+    if (target.left < floor.left || target.right > floor.right || target.top < floor.top || target.bottom > floor.bottom) return null
+    fun overlapsArt(rect: WalletRect) = target.left < rect.right && target.right > rect.left && target.top < rect.bottom && target.bottom > rect.top
+    if (overlapsArt(wallet) || overlapsArt(tray)) return null
+    if (occupied.any { hypot(pointer.x - it.center.x, pointer.y - it.center.y) < (diameter + it.width) / 2f + 1f }) return null
+    return target
+}

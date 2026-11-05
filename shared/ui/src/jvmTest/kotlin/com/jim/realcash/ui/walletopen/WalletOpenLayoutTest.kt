@@ -11,98 +11,62 @@ class WalletOpenLayoutTest {
 
     @Test
     fun billDimensionsComeFromPocketDepthAndPhysicalRatios() {
-        val pocket = WalletRect(30f, 400f, 260f, 250f)
+        val pocket = WalletRect(30f, 400f, 260f, 350f)
         val groups = pocketBillGroups(allowance, pocket)
-        val longest = (250f - 250f * 0.06f) / 0.74f
-        val width = longest * 68f / 154f
+        val width = pocket.height * 0.94f * 68f / 154f
         groups.zip(listOf(154f, 148f, 142f, 136f)).forEach { (group, realLength) ->
             assertEquals(width * realLength / 68f, group.billHeight, 0.001f)
             assertEquals(width, group.billWidth, 0.001f)
-            assertEquals(pocket.bottom - pocket.height * 0.06f, group.top + group.billHeight, 0.001f)
-            assertEquals(pocket.top, group.top + group.exposedHeight, 0.001f)
+            assertEquals(pocket.top + pocket.height / 2f, group.top + group.billHeight / 2f, 0.001f)
+            assertEquals(width * 0.35f * 0.5f, group.exposedWidth, 0.001f)
         }
-        groups.zipWithNext().forEach { (back, front) ->
-            assertTrue(back.billHeight > front.billHeight)
-            assertTrue(back.top < front.top)
-            assertTrue(back.exposedHeight > front.exposedHeight)
-        }
-        assertEquals(0.26f, groups.first().exposedHeight / groups.first().billHeight, 0.0001f)
-        assertTrue(groups.last().exposedHeight / groups.last().billHeight < 0.26f)
-        val alone = pocketBillGroups(mapOf(W1000 to 5), pocket).single()
-        assertEquals(groups.last().billWidth, alone.billWidth)
-        assertEquals(5, alone.visibleCount)
+        groups.zipWithNext().forEach { (a, b) -> assertTrue(a.billHeight > b.billHeight) }
+        assertEquals(groups.last().billWidth, pocketBillGroups(mapOf(W1000 to 5), pocket).single().billWidth)
     }
 
     @Test
-    fun overlappingGroupsStayInsidePocketAcrossScreenSizes() {
+    fun fourGroupsHaveDescendingOrderAndRealGapsAcrossScreenSizes() {
         for ((width, height) in listOf(320f to 568f, 390f to 844f, 412f to 915f, 844f to 390f)) {
             val pocket = WalletOpenLayout.calculate(width, height).pocket
             val groups = pocketBillGroups(allowance, pocket)
             assertEquals(listOf(W50000, W10000, W5000, W1000), groups.map { it.denomination })
-            groups.zipWithNext().forEach { (back, front) ->
-                assertEquals(back.slotWidth, front.slotLeft - back.slotLeft, 0.001f)
-                assertTrue(front.slotLeft - back.slotLeft >= 27.999f)
-                assertTrue(front.left < back.right, "right-hand denomination overlaps the left")
-                assertTrue(front.left > back.left, "each group keeps a tappable exposed strip")
+            groups.zipWithNext().forEach { (a, b) ->
+                assertEquals(minOf(WalletOpening.GROUP_GAP, pocket.width / 16f), b.left - a.right, 0.001f)
             }
             groups.forEachIndexed { index, group ->
-                assertTrue(group.left >= pocket.left - 0.001f)
-                assertTrue(group.right <= pocket.right + 0.001f)
-                assertTrue(group.top + group.billHeight <= pocket.bottom)
-                assertTrue(group.fanStep in 3f..8f)
-                if (group.visibleCount < group.count) assertEquals(3f, group.fanStep)
+                assertTrue(group.left >= pocket.left - 0.001f && group.right <= pocket.right + 0.001f)
+                assertTrue(group.top >= pocket.top && group.top + group.billHeight <= pocket.bottom)
                 val hit = pocketBillHitBounds(groups, index)
-                assertTrue(hit.width > 0f)
-                assertTrue(hit.right <= (groups.getOrNull(index + 1)?.left ?: pocket.right) + 0.001f)
-                assertEquals(pocket.top, hit.bottom, 0.001f)
+                assertEquals(group.right, hit.right)
+                assertEquals(group.top + group.exposedHeight, hit.bottom)
+                assertTrue(hit.width > 0f && hit.width < group.billWidth)
             }
         }
     }
 
     @Test
-    fun weightedSlotsRedistributeSmallSharesAtTwentyEightDpFloor() {
-        val pocket = WalletRect(0f, 200f, 400f, 200f)
-        val counts = mapOf(W50000 to 2, W10000 to 10, W5000 to 8, W1000 to 10)
-        val groups = pocketBillGroups(counts, pocket)
-        val available = pocket.width - groups.first().billWidth
-        val totalWeight = 36f + 100f + 84f + 100f
-        groups.zip(listOf(36f, 100f, 84f, 100f)).forEach { (group, weight) ->
-            assertEquals(available * weight / totalWeight, group.slotWidth, 0.001f)
-        }
-        val narrow = pocketBillGroups(counts, WalletOpenLayout.calculate(390f, 844f).pocket)
-        assertEquals(28f, narrow.first().slotWidth, 0.001f)
-        assertTrue(narrow.all { it.slotWidth >= 28f })
-        assertEquals(0f, narrow.sumOf { it.slotWidth.toDouble() }.toFloat() -
-            (WalletOpenLayout.calculate(390f, 844f).pocket.width - narrow.first().billWidth), 0.001f)
+    fun weightedFansGiveMoreRoomToGroupsWithMorePaper() {
+        val groups = pocketBillGroups(mapOf(W50000 to 2, W10000 to 10, W5000 to 8, W1000 to 10),
+            WalletOpenLayout.calculate(390f, 844f).pocket)
+        assertTrue(groups[1].slotWidth > groups[0].slotWidth)
+        assertTrue(groups[1].slotWidth > groups[2].slotWidth)
+        assertEquals(groups[1].slotWidth, groups[3].slotWidth)
+        assertEquals(groups[0].fanStep, groups[1].fanStep, 0.001f)
     }
 
     @Test
-    fun thirtyBillsOnlyHideBackLayersAtThreeDpFloor() {
-        val pocket = WalletOpenLayout.calculate(390f, 844f).pocket
-        val groups = pocketBillGroups(mapOf(W50000 to 2, W10000 to 10, W5000 to 8, W1000 to 10), pocket)
-        assertEquals(30, groups.sumOf { it.count })
-        assertTrue(groups[1].slotWidth > groups[0].slotWidth)
-        assertTrue(groups[1].slotWidth > groups[2].slotWidth)
-        assertEquals(groups[1].slotWidth, groups[3].slotWidth, 0.001f)
-        assertTrue(groups.all { it.visibleCount == it.count })
-        groups.forEach {
-            assertTrue(it.fanStep in 3f..8f)
-            assertTrue(it.visibleCount in 1..it.count)
-            if (it.visibleCount < it.count) assertEquals(3f, it.fanStep)
-            assertTrue(it.left >= pocket.left - 0.001f)
-            assertTrue(it.right <= pocket.right + 0.001f)
+    fun thirtyBillsFitWithoutBadgesEvenOnSmallScreens() {
+        for ((w, h) in listOf(320f to 568f, 390f to 844f, 844f to 390f)) {
+            val pocket = WalletOpenLayout.calculate(w, h).pocket
+            val groups = pocketBillGroups(mapOf(W50000 to 2, W10000 to 10, W5000 to 8, W1000 to 10), pocket)
+            assertEquals(30, groups.sumOf { it.visibleCount })
+            groups.forEach {
+                assertEquals(it.count, it.visibleCount)
+                assertTrue(it.fanStep in 0f..8f)
+                assertTrue(it.right <= pocket.right + 0.001f)
+            }
         }
-        val smallPocket = WalletOpenLayout.calculate(320f, 568f).pocket
-        val crowded = pocketBillGroups(mapOf(W50000 to 2, W10000 to 10, W5000 to 8, W1000 to 10), smallPocket)
-        assertTrue(crowded.any { it.visibleCount < it.count })
-        crowded.forEach {
-            if (it.visibleCount < it.count) assertEquals(3f, it.fanStep)
-            assertTrue(it.right <= smallPocket.right + 0.001f)
-        }
-        val overflow = pocketBillGroups(Denomination.entries.associateWith { 1_000 }, pocket)
-        assertEquals(4, overflow.size)
-        assertTrue(overflow.all { it.fanStep == 3f && it.visibleCount < it.count })
-        assertTrue(pocketBillGroups(emptyMap(), pocket).isEmpty())
+        assertTrue(pocketBillGroups(emptyMap(), WalletRect(0f, 0f, 100f, 300f)).isEmpty())
     }
 
     @Test
@@ -116,15 +80,19 @@ class WalletOpenLayoutTest {
     }
 
     @Test
-    fun assetFractionsAndSceneBoundsMatchReviewedImages() {
-        val layout = WalletOpenLayout.calculate(390f, 844f)
-        assertEquals(0.405f, (layout.pocket.top - layout.wallet.top) / layout.wallet.height, 0.0001f)
-        assertEquals(0.037f, (layout.pocket.left - layout.wallet.left) / layout.wallet.width, 0.0001f)
-        assertEquals(0.90f, (layout.trayInner.right - layout.trayInner.left) / layout.tray.width, 0.0001f)
-        assertEquals(0.77f, layout.trayInner.height / layout.tray.height, 0.0001f)
-        assertEquals(640f / 1024f, layout.wallet.width / layout.wallet.height)
-        assertTrue(layout.coins.left > layout.wallet.right)
-        assertTrue(layout.coins.right <= 390f)
-        assertTrue(layout.coins.bottom < 844f)
+    fun assetFractionsAndWholeWalletBoundsMatchReviewedImage() {
+        for ((width, height) in listOf(320f to 568f, 390f to 844f, 412f to 915f, 844f to 390f)) {
+            val layout = WalletOpenLayout.calculate(width, height)
+            assertEquals(0.15f, (layout.pocket.top - layout.wallet.top) / layout.wallet.height, 0.0001f)
+            assertEquals(0.17f, (layout.pocket.left - layout.wallet.left) / layout.wallet.width, 0.0001f)
+            assertEquals(640f / 1518f, layout.wallet.width / layout.wallet.height)
+            assertTrue(layout.wallet.left >= 0f && layout.wallet.right <= width)
+            assertTrue(layout.wallet.top >= 0f && layout.wallet.bottom <= height)
+            assertTrue(layout.coins.left > layout.wallet.right && layout.coins.right <= width)
+            assertTrue(layout.coins.bottom < height)
+            if (width > height) assertTrue(layout.tray.right < layout.wallet.left)
+            else assertTrue(layout.tray.bottom < layout.wallet.top)
+        }
+        assertEquals(844f * 0.6f, WalletOpenLayout.calculate(390f, 844f).wallet.height, 0.001f)
     }
 }

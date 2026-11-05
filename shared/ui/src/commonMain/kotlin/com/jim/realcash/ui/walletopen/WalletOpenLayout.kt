@@ -24,9 +24,36 @@ data class PocketBillGroup(
     val slotLeft: Float,
     val slotWidth: Float,
     val exposedHeight: Float,
+    val exposedWidth: Float,
 ) {
-    val right get() = left + billWidth + (visibleCount - 1) * fanStep
+    val right get() = left + exposedWidth + (visibleCount - 1) * fanStep
     val frontLeft get() = left + (visibleCount - 1) * fanStep
+}
+
+/** Reviewed wallet.open.b.opening and opening.usable, in image coordinates. */
+object WalletOpening {
+    const val TOP = 0.02f
+    const val LEFT = 0.10f
+    const val RIGHT = 0.92f
+    const val BOTTOM = 0.98f
+    const val USABLE_TOP = 0.15f
+    const val USABLE_LEFT = 0.17f
+    const val USABLE_RIGHT = 0.83f
+    const val USABLE_BOTTOM = 0.85f
+    const val FACE_FRACTION = 0.35f
+    const val ROTATION_X = 60f
+    const val GROUP_GAP = 6f
+
+    /** Same quadratic lens used to clip the artwork and reject hits on the walls. */
+    fun contains(wallet: WalletRect, point: androidx.compose.ui.geometry.Offset): Boolean {
+        val y = (point.y - wallet.top) / wallet.height
+        val t = (y - TOP) / (BOTTOM - TOP)
+        if (t !in 0f..1f) return false
+        val mid = (LEFT + RIGHT) / 2f
+        val spread = 4f * t * (1f - t)
+        val x = (point.x - wallet.left) / wallet.width
+        return x >= mid + (LEFT - mid) * spread && x <= mid + (RIGHT - mid) * spread
+    }
 }
 
 data class WalletOpenLayout(val wallet: WalletRect, val pocket: WalletRect, val tray: WalletRect, val trayInner: WalletRect, val coins: WalletRect) {
@@ -36,76 +63,54 @@ data class WalletOpenLayout(val wallet: WalletRect, val pocket: WalletRect, val 
             val landscape = width > height
             val trayWidth = minOf(width * (if (landscape) 0.43f else 0.92f), height * (if (landscape) 0.30f else 0.22f) * 1024f / 427f)
             val tray = WalletRect(if (landscape) 12f else (width - trayWidth) / 2f, 78f, trayWidth, trayWidth * 427f / 1024f)
-            // Reserve both the right-hand strip and room for the tray controls on smaller screens.
-            // A short portrait still needs a real pocket, rather than four miniature bill slots.
-            // In landscape the tray and wallet sit side by side.
-            val minimumHeight = minOf(400f, width * 0.78f * 1024f / 640f)
-            val walletHeight = if (landscape) height - 24f else
-                minOf(height * 0.60f, width * 0.72f * 1024f / 640f,
-                    (height - tray.bottom - 76f).coerceAtLeast(1f)).coerceAtLeast(minimumHeight)
-            val walletWidth = walletHeight * 640f / 1024f
+            val walletHeight = if (landscape) minOf(height - 24f, (width - tray.right - 88f) * 1518f / 640f)
+                else minOf(height * 0.60f, (height - tray.bottom - 70f).coerceAtLeast(1f), width * 0.72f * 1518f / 640f)
+            val walletWidth = walletHeight * 640f / 1518f
             val wallet = WalletRect(if (landscape) width - walletWidth - 76f else (width - walletWidth) / 2f,
                 height - walletHeight - 12f, walletWidth, walletHeight)
             return WalletOpenLayout(
-                wallet, wallet.inner(0.037f, 0.405f, 0.963f, 0.98f),
+                wallet, wallet.inner(WalletOpening.USABLE_LEFT, WalletOpening.USABLE_TOP, WalletOpening.USABLE_RIGHT, WalletOpening.USABLE_BOTTOM),
                 tray, tray.inner(0.05f, 0.13f, 0.95f, 0.90f),
-                WalletRect(wallet.right + 4f, wallet.top + walletHeight * 0.20f,
-                    (width - wallet.right - 8f).coerceAtLeast(0f), walletHeight * 0.74f),
+                WalletRect(wallet.right + 6f, wallet.top + walletHeight * 0.12f,
+                    (width - wallet.right - 12f).coerceAtLeast(0f), walletHeight * 0.80f),
             )
         }
     }
 }
 
 /**
- * Back-to-front drawing order: high denominations first, then each fan from left to right.
- * All bills have the same physical short edge and rest on the same pocket bottom.
+ * Upright long edges run down the lens. Only the top 35% of each face's short
+ * edge is visible, foreshortened by rotationX(60). Full dimensions remain available
+ * for pickup; count-weighted fans compress without dropping paper or adding badges.
  */
 fun pocketBillGroups(counts: Map<Denomination, Int>, pocket: WalletRect): List<PocketBillGroup> {
     val bills = Denomination.descending.filter { it.kind == Denomination.Kind.BILL && (counts[it] ?: 0) > 0 }
     if (bills.isEmpty() || pocket.width <= 0f || pocket.height <= 0f) return emptyList()
-    val longest = pocket.height * 0.94f / 0.74f
+    val longest = pocket.height * 0.94f
     val width = longest / Denomination.W50000.billAspectRatio
-    val bottom = pocket.bottom - pocket.height * 0.06f
-    val available = (pocket.width - width).coerceAtLeast(0f)
-    val weights = bills.map { 28f + (counts.getValue(it) - 1).toFloat() * 8f }
-    val slots = FloatArray(bills.size)
-    val pending = bills.indices.toMutableList()
-    // Water-fill the proportional shares: fixing a small group at 28dp must not
-    // take the extra space intended for groups with more paper.
-    var remaining = available.coerceAtLeast(28f * bills.size)
-    while (pending.isNotEmpty()) {
-        val totalWeight = pending.sumOf { weights[it].toDouble() }.toFloat()
-        val atFloor = pending.filter { remaining * weights[it] / totalWeight < 28f }
-        if (atFloor.isEmpty()) {
-            pending.forEach { slots[it] = remaining * weights[it] / totalWeight }
-            break
-        }
-        atFloor.forEach { slots[it] = 28f; remaining -= 28f }
-        pending.removeAll(atFloor)
-    }
+    val exposedWidth = width * WalletOpening.FACE_FRACTION * 0.5f // cos(60°)
+    val gap = minOf(WalletOpening.GROUP_GAP, pocket.width / (bills.size * 4f))
+    val strip = minOf(exposedWidth, (pocket.width - gap * (bills.size - 1)) / bills.size)
+    val extra = (pocket.width - gap * (bills.size - 1) - strip * bills.size).coerceAtLeast(0f)
+    val weights = bills.map { (counts.getValue(it) - 1).coerceAtLeast(0).toFloat() }
+    val total = weights.sum().coerceAtLeast(1f)
     var cursor = pocket.left
     return bills.mapIndexed { index, d ->
         val count = counts.getValue(d)
-        val slotLeft = cursor
-        cursor += slots[index]
-        // On a very narrow pocket, the 28dp slot floors can exceed the physical
-        // space. Keep the paper inside the seam and badge only at the 3dp floor.
-        val left = slotLeft.coerceAtMost(pocket.left + available)
-        val room = minOf(slots[index], pocket.left + available - left).coerceAtLeast(0f)
-        val step = if (count == 1) 8f else minOf(8f, room / (count - 1)).coerceAtLeast(3f)
-        val visible = minOf(count, (room / step + 0.0001f).toInt() + 1)
+        val fan = minOf(extra * weights[index] / total, 8f * (count - 1))
+        val step = if (count == 1) 0f else fan / (count - 1)
         val length = width * d.billAspectRatio
-        val top = bottom - length
-        PocketBillGroup(d, count, visible, left, top, width, length, step, slotLeft,
-            slots[index], pocket.top - top)
+        val left = cursor
+        cursor += strip + fan + gap
+        PocketBillGroup(d, count, count, left, pocket.top + (pocket.height - length) / 2f,
+            width, length, step, left, strip + fan, length, strip)
     }
 }
 
-/** Only visible paper is tappable; every strip of a group picks its rightmost/front unit. */
+/** The exposed front strip and fan pick the front unit, never the hidden face. */
 fun pocketBillHitBounds(groups: List<PocketBillGroup>, index: Int): WalletRect {
     val group = groups[index]
-    val right = minOf(group.right, groups.getOrNull(index + 1)?.left ?: group.right)
-    return WalletRect(group.left, group.top, (right - group.left).coerceAtLeast(0f), group.exposedHeight)
+    return WalletRect(group.left, group.top, group.right - group.left, group.exposedHeight)
 }
 
 /** Horizontal tray faces overlap by a fixed pitch, with coins following the final bill edge. */

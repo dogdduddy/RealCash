@@ -58,7 +58,7 @@ class WalletOpenSwayTest {
             val groups = pocketBillGroups(counts, layout.pocket)
             val left = groups.first().left + 1f
             val right = groups.last().right - 1f
-            val y = layout.pocket.top - 4f
+            val y = groups.first().top + groups.first().exposedHeight / 2f
             scene.sendPointerEvent(PointerEventType.Press, Offset(left, y) * 2f, timeMillis = 1_000L)
             for (step in 1..20) {
                 delay(16)
