@@ -1,0 +1,20 @@
+25600d63fafe89c8a7a125af6a7fda7ba42f4f47 [codex-ui] ui.wallet-open-v4: 열린 지갑 v4 — 눕혀 펼친 지갑, 오른쪽으로 빠져나온 지폐 뭉치
+
+ shared/ui/screenshots/v4-30.png                    | Bin 0 -> 498615 bytes
+ shared/ui/screenshots/v4-held.png                  | Bin 0 -> 591883 bytes
+ shared/ui/screenshots/v4-open.png                  | Bin 0 -> 532012 bytes
+ .../com/jim/realcash/ui/walletopen/CoinScatter.kt  |  37 ++++-
+ .../com/jim/realcash/ui/walletopen/WalletMotion.kt |  90 +++--------
+ .../jim/realcash/ui/walletopen/WalletOpenLayout.kt | 166 ++++++++++----------
+ .../jim/realcash/ui/walletopen/WalletOpenScreen.kt |  66 ++++----
+ .../jim/realcash/ui/walletopen/WalletPhysics.kt    |  32 +---
+ .../jim/realcash/ui/walletopen/CoinScatterTest.kt  |  20 +++
+ .../ui/walletopen/WalletOpenGestureTest.kt         |  13 +-
+ .../realcash/ui/walletopen/WalletOpenLayoutTest.kt | 167 ++++++++++-----------
+ .../ui/walletopen/WalletOpenNavigationTest.kt      |   2 +-
+ .../ui/walletopen/WalletOpenScreenshotTest.kt      |  10 +-
+ .../realcash/ui/walletopen/WalletOpenSwayTest.kt   |  63 +++-----
+ .../jim/realcash/ui/walletopen/WalletOpenV3Test.kt |  27 ++--
+ .../jim/realcash/ui/walletopen/WalletOpenV4Test.kt | 115 ++++++++++++++
+ .../realcash/ui/walletopen/WalletPhysicsTest.kt    |  48 +++---
+ 17 files changed, 451 insertions(+), 405 deletions(-)
