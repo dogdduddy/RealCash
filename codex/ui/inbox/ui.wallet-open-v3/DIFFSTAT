@@ -1,0 +1,15 @@
+aa90f2dce53c6be988fb5fdf00626b579253ef1f [codex-ui] ui.wallet-open-v3: 열린 지갑 v3 — 벌어진 지폐 칸 시점, 지폐 윗부분 노출, 바닥 동전
+
+ shared/ui/screenshots/v3-coin-left.png             | Bin 0 -> 358643 bytes
+ shared/ui/screenshots/v3-held.png                  | Bin 0 -> 425829 bytes
+ shared/ui/screenshots/v3-open.png                  | Bin 0 -> 358489 bytes
+ .../com/jim/realcash/ui/walletopen/CoinScatter.kt  |  17 ++
+ .../com/jim/realcash/ui/walletopen/WalletMotion.kt |   8 +-
+ .../jim/realcash/ui/walletopen/WalletOpenLayout.kt |  99 ++++++------
+ .../jim/realcash/ui/walletopen/WalletOpenScreen.kt | 112 ++++++++-----
+ .../jim/realcash/ui/walletopen/WalletPhysics.kt    |   2 +-
+ .../realcash/ui/walletopen/WalletOpenLayoutTest.kt | 124 ++++++---------
+ .../ui/walletopen/WalletOpenNavigationTest.kt      |   2 +-
+ .../realcash/ui/walletopen/WalletOpenSwayTest.kt   |   2 +-
+ .../jim/realcash/ui/walletopen/WalletOpenV3Test.kt | 173 +++++++++++++++++++++
+ 12 files changed, 371 insertions(+), 168 deletions(-)

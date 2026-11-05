@@ -1,0 +1,3609 @@
+Reading additional input from stdin...
+2026-11-05T01:00:01.291756Z  WARN codex_skills::interface: ignoring interface.icon_small: icon path with '..' must resolve under plugin assets/
+2026-11-05T01:00:01.292361Z  WARN codex_skills::interface: ignoring interface.icon_large: icon path with '..' must resolve under plugin assets/
+OpenAI Codex v0.164.0
+--------
+workdir: /Users/jeonbyeongseon/realcash-worker/scripts/log/ui-worktree
+model: gpt-6.1-sol
+provider: openai
+approval: never
+sandbox: danger-full-access
+reasoning effort: high
+reasoning summaries: none
+session id: 01a1a938-47f0-7451-a38b-f167fce5cbfd
+--------
+user
+# Codex UI 작업 상시 지시 (워커가 모든 UI 의뢰서 앞에 붙인다)
+
+너는 RealCash(Kotlin Multiplatform + Compose Multiplatform 가계부 앱)의 **UI 코드 작업 하나**를 맡았다. 이 글 아래에 붙은 의뢰서가 이번 작업의 전부다. 사람과 대화할 수 없으니, 의뢰서와 저장소 파일만 보고 판단한다.
+
+## 작업 위치
+- 지금 폴더는 워커 전용 git worktree다. 동기화 브랜치의 최신 커밋이 분리된 HEAD로 체크아웃되어 있다.
+- 무엇이든 읽어도 된다. 먼저 `CLAUDE.md`, `docs/01-realcash-analysis-and-design.md`(§3 사용자 플로우, §5.5 지폐 자산, §5.6 화면 구성)와 `shared/ui/` 현재 코드를 읽는다. 도메인 규칙은 `shared/domain`, 저장소 API는 `shared/data`를 읽어서 쓴다.
+
+## 고쳐도 되는 곳 (이 밖은 한 글자도 바꾸지 마라)
+- `shared/ui/**`
+- `assets/img/**` (검수를 통과한 그림을 앱에 연결할 때만)
+
+## 절대 하지 마라
+- `shared/domain/**`, `shared/data/**`, 그 밖의 모듈 변경. 도메인·데이터 로직을 UI 안에 새로 짜 넣지도 마라 (필요하면 요약에 "도메인 쪽 필요"로 적는다).
+- Gradle 파일(`settings.gradle.kts`, `build.gradle.kts`, `gradle/**`, 버전 카탈로그 `gradle/libs.versions.toml`), `scripts/`, `docs/`, `CLAUDE.md`, `README.md`, `codex/`, `assets/` 중 `assets/img/` 밖, `iosApp/` 변경.
+- 새 의존성 추가 (라이브러리, 플러그인, 버전 변경).
+- git 명령 (add, commit, branch, checkout, stash, reset, clean, push 모두). 커밋과 push는 워커가 한다.
+- 이미지 생성. 그림이 필요하면 요약에 "이미지 의뢰 필요"로 적는다.
+- 비밀 값 출력 (환경 변수 전체, 토큰, 키, `~/.codex` 등 설정 파일 내용).
+- 허용 경로 밖을 건드리면 워커가 작업 전체를 되돌리고 실패로 기록한다.
+
+## 작업 기준
+- 화면 문구는 한국어. 금액은 원 단위 정수, 천 단위 쉼표.
+- 지폐·동전·지갑 그림은 `assets/img/`의 검수 통과본(`Res.drawable.*`)만 연결한다. 그림을 직접 그리거나 고치지 않는다.
+- 의뢰서의 [완료 기준]을 하나씩 만족시키고, 기존 테스트를 깨지 마라.
+- JDK가 있으면 `./gradlew :shared:ui:jvmTest`가 통과하는 상태로 끝낸다. 워커가 끝난 뒤 같은 검사를 다시 돌려 실패하면 작업 전체를 버린다. JDK나 네트워크 때문에 돌릴 수 없으면 그렇다고 적는다.
+- 스크린샷 테스트는 `System.getProperty("realcash.screenshotDir")`(= `shared/ui/build/screenshots`)에 쓴다. 의뢰서가 검수용 스크린샷을 요구하면 그 사본만 `shared/ui/screenshots/<이름>.png`에 1x 밀도(390×844)로 두어 커밋되게 한다. `src/` 아래에는 PNG를 두지 않는다.
+
+## 끝낼 때
+마지막 응답에 짧게 적는다.
+1. 바꾼 파일 목록
+2. [완료 기준]별로 어떻게 만족했는지
+3. 실제로 돌린 검사와 결과 (돌리지 못했으면 이유)
+4. 남은 일, 도메인·이미지 쪽에 필요한 것
+
+# requires-review: wallet.closed.b
+[목적] 홈의 닫힌 지갑을 새 그림(검은 크로스그레인 가죽 반지갑, 3/4 시점)으로 바꾸고, 지폐 수에 따른 두께 표현을 없앤다(사용자 결정 2026-11-05, docs/04 §8).
+
+[화면·파일] 홈. shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/components/ClosedWallet.kt, wallet/WalletHomeScreen.kt 와 관련 테스트·스크린샷 테스트.
+
+[요청] 홈 닫힌 지갑을 새 그림으로 바꾸고 두께 레이어 제거
+1. ClosedWallet 의 옆면 레이어(sideLayers) 그리기와 그 파라미터, 호출부의 장수→레이어 계산을 모두 없앤다. 그림은 Res.drawable.wallet_closed (교체된 새 그림, 비율은 assets/manifest.json 의 wallet.closed.b.size) 를 자르지 않고 전체 표시한다. 가로는 화면 폭의 약 70%, 세로는 비율대로.
+2. 지폐 수·배지 유무와 무관하게 지갑의 위치와 크기가 같다(지폐 0장과 30장 스크린샷에서 지갑 윤곽 좌표가 동일).
+3. 탭하면 열리는 전환(opening 애니메이션)은 유지하되 새 그림의 3/4 시점에 어색하지 않게: 살짝 커지며 위로 들리는 정도의 단순한 전환으로 바꿔도 된다.
+
+[완료 기준] ./gradlew :shared:ui:jvmTest 통과. 검수용 스크린샷 h3-home-empty.png, h3-home-30bills.png 를 shared/ui/screenshots/ 에 1x 밀도(390×844)로 저장해 커밋(테스트는 realcash.screenshotDir 에 쓰고 사본만 복사). 두 장면에서 지갑 위치가 같다는 테스트 1개.
+
+[절대 금지] shared/domain, shared/data, androidApp, Gradle, assets 변경. 그림 자르기·색 보정. src/ 아래에 PNG 두지 않기.
+codex
+지갑 컴포넌트와 홈 배치, 기존 테스트를 확인한 뒤 두께 레이어를 제거하겠습니다. 검수용 스크린샷 두 장을 만들고 위치 동일성 검사와 JVM 테스트를 실행하겠습니다.
+exec
+/bin/zsh -lc "pwd && rg --files -g 'AGENTS.md' -g 'CLAUDE.md' -g '*ClosedWallet*' -g '*WalletHome*' -g '*Screenshot*' -g 'manifest.json' -g '01-realcash-analysis-and-design.md'" in /Users/jeonbyeongseon/realcash-worker/scripts/log/ui-worktree
+exec
+/bin/zsh -lc 'ls -la' in /Users/jeonbyeongseon/realcash-worker/scripts/log/ui-worktree
+ succeeded in 0ms:
+total 96
+drwxr-xr-x@ 22 jeonbyeongseon  staff   704 Nov  5 01:28 .
+drwxr-xr-x@ 25 jeonbyeongseon  staff   800 Nov  5 09:37 ..
+-rw-r--r--@  1 jeonbyeongseon  staff    73 Nov  4 21:14 .git
+-rw-r--r--@  1 jeonbyeongseon  staff   537 Nov  5 01:28 .gitignore
+drwxr-xr-x@  6 jeonbyeongseon  staff   192 Nov  4 21:18 .gradle
+drwxr-xr-x@  3 jeonbyeongseon  staff    96 Nov  4 21:18 .kotlin
+-rw-r--r--@  1 jeonbyeongseon  staff  5348 Nov  4 21:14 CLAUDE.md
+-rw-r--r--@  1 jeonbyeongseon  staff  3015 Nov  4 21:14 README.md
+drwxr-xr-x@  4 jeonbyeongseon  staff   128 Nov  4 21:14 androidApp
+drwxr-xr-x@ 10 jeonbyeongseon  staff   320 Nov  5 09:59 assets
+-rw-r--r--@  1 jeonbyeongseon  staff   863 Nov  4 21:14 build.gradle.kts
+drwxr-xr-x@  4 jeonbyeongseon  staff   128 Nov  4 21:14 codex
+drwxr-xr-x@  9 jeonbyeongseon  staff   288 Nov  5 09:59 docs
+drwxr-xr-x@  4 jeonbyeongseon  staff   128 Nov  4 21:14 gradle
+-rw-r--r--@  1 jeonbyeongseon  staff   534 Nov  4 21:14 gradle.properties
+-rwxr-xr-x@  1 jeonbyeongseon  staff  8733 Nov  4 21:14 gradlew
+-rw-r--r--@  1 jeonbyeongseon  staff  2937 Nov  4 21:14 gradlew.bat
+drwxr-xr-x@  3 jeonbyeongseon  staff    96 Nov  4 21:14 iosApp
+drwxr-xr-x@ 11 jeonbyeongseon  staff   352 Nov  4 21:14 scripts
+-rw-r--r--@  1 jeonbyeongseon  staff  1092 Nov  4 21:14 settings.gradle.kts
+drwxr-xr-x@  5 jeonbyeongseon  staff   160 Nov  4 21:14 shared
+drwxr-xr-x@  3 jeonbyeongseon  staff    96 Nov  4 21:14 tools
+
+exec
+/bin/zsh -lc 'cat CLAUDE.md' in /Users/jeonbyeongseon/realcash-worker/scripts/log/ui-worktree
+ succeeded in 0ms:
+# RealCash
+
+RealCash는 카드·간편결제는 그대로 쓰면서 돈을 보고·꺼내고·거슬러 받는 감각만 현금처럼 되살려 지출을 줄이는 Android·iOS 앱이다 (Kotlin Multiplatform). 제품·아키텍처는 `docs/01-realcash-analysis-and-design.md`, 작업 분해와 작업 규칙은 `docs/02-engineering-plan.md`를 먼저 읽는다. `docs/`와 `README.md`는 리드 전용이다. 이미지 파이프라인 운영 설명은 `docs/03-gpt-image-pipeline.md`.
+
+## 이미지 작업 (GPT 위임)
+- 이미지는 직접 만들지 않는다. assets/jobs/queue/NN-<id>.prompt.md 의뢰서를 .tmp로 쓴 뒤
+  이름을 바꿔 넣고 커밋·push한다. 의뢰서 하나 = 이미지 1장, 첫 줄 $imagegen,
+  그 자체로 완결된 프롬프트(틀은 docs/03-gpt-image-pipeline.md), 저장 경로 assets/inbox/<id>/<id>-1.png.
+- 돈 그림은 **실물 원화에 최대한 가깝게** 의뢰한다(2024-09-01 개정 「한국은행권 및 주화의 도안 이용기준」: 영리 이용 자유,
+  화면 표시는 인쇄물·모조품 규격 적용 대상 아님. docs/reference/bok-currency-design-guidelines-2024-09.pdf).
+  단 제3조를 지킨다: (1) **도안 인물(초상)은 절대 그리지 않는다** — 인물 분리·변형 금지(영정 작가 저작인격권). 초상 자리는
+  그 지폐의 뒷면 모티프(만원 혼천의, 오만원 월매도·풍죽도, 오천원 초충도, 천원 계상정거도)나 한글 액면("만원")으로 채운다.
+  (2) 진폐로 오인될 용도(인쇄·실물 제작)로 쓰지 않는다. (3) 품위를 해치는 표현 금지. 의뢰서 [절대 금지]에 (1)을 이유와 함께 적는다.
+- codex를 직접 실행하지 않는다. 맥의 동기화 워커가 5분마다 동기화 브랜치(SYNC_BRANCH, 기본 main)를 받아
+  Codex 워커가 처리하고 결과를 올린다. 의뢰서도 그 브랜치에 push해야 맥에 닿는다. scripts/는 수정하지 않는다.
+- 검수 대상: assets/inbox/<id>/STATUS가 있고 REVIEWED가 없는 폴더. 이미지를 직접 보고,
+  필요하면 tools/loop의 chroma-key·fit·review-sheet로 확인한다 (처음 한 번 cd tools/loop && npm install,
+  실행은 저장소 루트에서 tools/loop/node_modules/.bin/tsx tools/loop/src/<도구>.ts …).
+  - 통과: assets/raw/에 원본, assets/img/에 정리본, assets/manifest.json에 draft(source gpt, aiGenerated),
+    assets/LOG.md에 출처, REVIEWED에 "PASS draft".
+  - 불합격: REVIEWED에 "FAIL 이유", 결과를 attempt-N/으로 옮기고 의뢰서를 고쳐
+    새 NN으로 다시 넣는다. 같은 id 3회 실패면 사람에게 묻는다.
+- 미검수가 4개 쌓이면 워커가 멈추므로 검수를 먼저 한다.
+- 시안 여러 장은 사용자에게 보여 주고 고르게 한다. final은 사람 승인 뒤에만.
+- push 충돌 시 assets/inbox·assets/jobs는 원격(맥) 쪽 변경을 살린다.
+
+## UI 작업 (GPT 위임)
+- GPT/Codex에 맡기는 일은 이미지와 UI뿐이다. UI 의뢰서는 `shared/ui` 안에서 끝나는 일만 쓴다: 화면 다듬기,
+  애니메이션·물리감, 레이아웃, 검수 통과한 그림(assets/img/) 연결. 도메인·데이터 로직(shared/domain, shared/data),
+  Gradle·의존성 변경은 절대 의뢰하지 않는다 (필요하면 Claude 세션이 직접 한다).
+- codex/ui/queue/NN-<id>.prompt.md 의뢰서를 .tmp로 쓴 뒤 이름을 바꿔 넣고 동기화 브랜치에 커밋·push한다.
+  이름 규칙은 이미지와 같다. 워커가 docs/handoff/CODEX-UI-TICK.md(상시 지시)를 앞에 붙여 실행하므로
+  의뢰서에는 이번 작업만 적는다. 첫 줄에 $imagegen을 쓰지 않는다. 틀:
+  [목적] 무엇을 왜 / [화면·파일] 대상 화면과 shared/ui 안 파일 / [요청] 첫 줄이 커밋 제목(60자)이 된다 /
+  [완료 기준] 검사 가능한 항목으로 / [비교] 참고 스크린샷·그림 경로(있으면) / [절대 금지] 건드리면 안 되는 것.
+  선행 조건은 이미지와 같이 `# requires-review: <id>`(이미지 id도 됨), `# requires-gate: <게이트>`.
+- 워커는 허용 경로(shared/ui/, assets/img/) 밖 변경, 변경 없음, 검사(:shared:ui:jvmTest) 실패면 전부 되돌리고
+  failed + failed.patch를 남긴다. 성공하면 codex/ui/<id> 브랜치(재시도는 codex/ui/<id>-r<N>)에 커밋해 push하고
+  codex/ui/inbox/<id>/에 STATUS(브랜치·커밋), DIFFSTAT, codex.log를 둔다.
+- 검수 대상: codex/ui/inbox/<id>/STATUS가 있고 REVIEWED가 없는 폴더. STATUS의 브랜치를 git fetch 하고
+  DIFFSTAT으로 범위를 본 뒤 diff를 읽고, 여기서 ./gradlew :shared:ui:jvmTest를 돌리고, 스크린샷이 있으면 직접 본다.
+  - 통과: 개발 브랜치에 git merge --no-ff <브랜치>, REVIEWED에 "PASS merged <sha>", 원격 작업 브랜치 삭제
+    (git push origin --delete <브랜치>).
+  - 불합격: REVIEWED에 "FAIL 이유", 결과를 attempt-N/으로 옮기고 이유를 반영한 새 의뢰서(새 NN)로 다시 넣는다.
+    원격 작업 브랜치는 지운다. 같은 id 3회 실패면 사람에게 묻는다. ATTEMPTS는 지우지 않는다.
+- 미검수 UI 결과가 2개 쌓이면 UI 워커가 멈춘다. 이미지 의뢰가 큐에 있으면 UI 워커는 기다린다(이미지 먼저).
+- push 충돌 시 codex/ui도 원격(맥) 쪽 변경을 살린다.
+
+exec
+/bin/zsh -lc "rg --files shared/ui shared/domain shared/data docs assets -g 'AGENTS.md' -g '*ClosedWallet*' -g '*WalletHome*' -g '*Screenshot*' -g 'manifest.json' -g '01-realcash-analysis-and-design.md'" in /Users/jeonbyeongseon/realcash-worker/scripts/log/ui-worktree
+exec
+/bin/zsh -lc 'for p in /AGENTS.md /Users/AGENTS.md /Users/jeonbyeongseon/AGENTS.md /Users/jeonbyeongseon/realcash-worker/AGENTS.md /Users/jeonbyeongseon/realcash-worker/scripts/AGENTS.md /Users/jeonbyeongseon/realcash-worker/scripts/log/AGENTS.md; do if [ -f "$p" ]; then cat "$p"; fi; done' in /Users/jeonbyeongseon/realcash-worker/scripts/log/ui-worktree
+ succeeded in 0ms:
+exec
+/bin/zsh -lc 'cat assets/manifest.json' in /Users/jeonbyeongseon/realcash-worker/scripts/log/ui-worktree
+exec
+/bin/zsh -lc "sed -n '1,250p' docs/01-realcash-analysis-and-design.md" in /Users/jeonbyeongseon/realcash-worker/scripts/log/ui-worktree
+ succeeded in 0ms:
+{
+  "$comment": "RealCash 에셋 목록. assets 키는 에셋 id(의뢰서 id와 같음, 예: bill.w10000.a), 값은 { path: 앱이 쓰는 정리본 경로, size: \"WxH\", status: \"draft\" | \"final\", source: \"gpt\", aiGenerated: true|false }. 검수 통과 시 Claude 세션이 draft로 추가하고, final은 사람 승인 뒤에만 붙인다. 원본은 assets/raw/, 출처 기록은 assets/LOG.md. assets/img/drawable/ 는 Compose Multiplatform 리소스 디렉터리(customDirectory)로도 쓰여 파일명이 리소스 id(bill_w10000 등)가 된다.",
+  "version": 1,
+  "assets": {
+    "bill.w10000.a": {
+      "path": "assets/img/drawable/bill_w10000_a.png",
+      "size": "1024x448",
+      "status": "draft",
+      "source": "gpt",
+      "aiGenerated": true,
+      "role": "미채택 — 오리지널 스타일 시안, bill.w10000.b 로 대체"
+    },
+    "bill.w10000.b": {
+      "path": "assets/img/drawable/bill_w10000.png",
+      "resource": "bill_w10000",
+      "size": "1024x470",
+      "status": "draft",
+      "source": "gpt",
+      "aiGenerated": true,
+      "role": "만원권 앞면 (실물풍, 초상→혼천의)"
+    },
+    "bill.w50000.b": {
+      "path": "assets/img/drawable/bill_w50000.png",
+      "resource": "bill_w50000",
+      "size": "1024x452",
+      "status": "draft",
+      "source": "gpt",
+      "aiGenerated": true,
+      "role": "오만원권 앞면 (실물풍, 초상→월매도·풍죽도)"
+    },
+    "bill.w5000.b": {
+      "path": "assets/img/drawable/bill_w5000.png",
+      "resource": "bill_w5000",
+      "size": "1024x490",
+      "status": "draft",
+      "source": "gpt",
+      "aiGenerated": true,
+      "role": "오천원권 앞면 (실물풍, 초상→초충도)"
+    },
+    "bill.w1000.b": {
+      "path": "assets/img/drawable/bill_w1000.png",
+      "resource": "bill_w1000",
+      "size": "1024x512",
+      "status": "draft",
+      "source": "gpt",
+      "aiGenerated": true,
+      "role": "천원권 앞면 (실물풍, 초상→계상정거도)"
+    },
+    "coin.c500.a": {
+      "path": "assets/img/drawable/coin_c500.png",
+      "resource": "coin_c500",
+      "size": "512x512",
+      "status": "draft",
+      "source": "gpt",
+      "aiGenerated": true,
+      "role": "500원 주화 앞면 (학, 실물풍)"
+    },
+    "coin.c100.a": {
+      "path": "assets/img/drawable/coin_c100.png",
+      "resource": "coin_c100",
+      "size": "512x512",
+      "status": "draft",
+      "source": "gpt",
+      "aiGenerated": true,
+      "role": "100원 주화 숫자 면 (앞면 초상 회피, 실물풍)"
+    },
+    "coin.c50.a": {
+      "path": "assets/img/drawable/coin_c50.png",
+      "resource": "coin_c50",
+      "size": "512x512",
+      "status": "draft",
+      "source": "gpt",
+      "aiGenerated": true,
+      "role": "50원 주화 앞면 (벼 이삭, 실물풍)"
+    },
+    "coin.c10.a": {
+      "path": "assets/img/drawable/coin_c10.png",
+      "resource": "coin_c10",
+      "size": "512x512",
+      "status": "draft",
+      "source": "gpt",
+      "aiGenerated": true,
+      "role": "10원 주화 앞면 (다보탑, 구릿빛 신형, 실물풍)"
+    },
+    "wallet.closed.a": {
+      "path": "assets/raw/wallet.closed.a-1.png",
+      "size": "1024x540",
+      "status": "draft",
+      "source": "gpt",
+      "aiGenerated": true,
+      "role": "미채택 — 갈색 장지갑, wallet.closed.b 로 대체 (정리본 제거, 원본만 보관)"
+    },
+    "wallet.open.a": {
+      "path": "assets/raw/wallet.open.a-1.png",
+      "size": "640x1024",
+      "status": "draft",
+      "source": "gpt",
+      "aiGenerated": true,
+      "role": "미채택 — 갈색 장지갑, wallet.open.b 로 대체 (정리본 제거, 원본만 보관)",
+      "pocket": {
+        "$comment": "이미지 전체 크기 대비 비율. 지폐를 꽂을 포켓 안쪽 영역과 입구(윗가장자리) 위치",
+        "topFraction": 0.405,
+        "leftFraction": 0.037,
+        "rightFraction": 0.963,
+        "bottomFraction": 0.98
+      }
+    },
+    "wallet.closed.b": {
+      "path": "assets/img/drawable/wallet_closed.png",
+      "resource": "wallet_closed",
+      "size": "1024x945",
+      "status": "draft",
+      "source": "gpt",
+      "aiGenerated": true,
+      "role": "홈: 닫힌 검은 크로스그레인 반지갑, 3/4 시점 제품 사진 구도. 두께 표현 없음"
+    },
+    "wallet.open.b": {
+      "path": "assets/img/drawable/wallet_open.png",
+      "resource": "wallet_open",
+      "size": "640x1518",
+      "status": "draft",
+      "source": "gpt",
+      "aiGenerated": true,
+      "role": "열린 지갑 화면 본체: 반지갑을 세로로 들고 지폐 칸을 벌려 위에서 본 1인칭, 손 없음",
+      "opening": {
+        "$comment": "이미지 전체 크기 대비 비율. 벌어진 칸 입구(아몬드/렌즈 모양)의 안감 영역. top/bottom 은 렌즈 양 끝, left/right 는 세로 중앙(가장 넓은 곳). usable 은 폭이 최대의 70% 이상인 직사각형(지폐 배치 기준). 그림의 좌우 벽은 윗부분에 카드 슬롯 선이 있다",
+        "topFraction": 0.02,
+        "leftFraction": 0.1,
+        "rightFraction": 0.92,
+        "bottomFraction": 0.98,
+        "usable": {
+          "topFraction": 0.15,
+          "leftFraction": 0.17,
+          "rightFraction": 0.83,
+          "bottomFraction": 0.85
+        }
+      }
+    },
+    "tray.a": {
+      "path": "assets/img/drawable/tray.png",
+      "resource": "tray",
+      "size": "1024x427",
+      "status": "draft",
+      "source": "gpt",
+      "aiGenerated": true,
+      "role": "열린 지갑 화면 상단 접시(캐셔 트레이)",
+      "inner": {
+        "$comment": "이미지 전체 크기 대비 비율. 지폐·동전을 올릴 수 있는 바닥 영역",
+        "leftFraction": 0.05,
+        "topFraction": 0.13,
+        "rightFraction": 0.95,
+        "bottomFraction": 0.9
+      }
+    }
+  }
+}
+
+ succeeded in 0ms:
+# RealCash — HardPay 회고 분석 및 설계 제안 (v0.1)
+
+> 작성일: 2026-11-04
+> 상태: 제안 단계. 코드 작성 전. 이 문서의 결정 사항에 합의한 뒤 Phase 0 스파이크로 넘어간다.
+
+---
+
+## 0. 한 줄 요약
+
+- **HardPay** 는 "결제 **직전** 에 가상 현금을 꺼내는 앱" 이었다.
+- **RealCash** 는 "현금 지갑을 **들고 다니고**, 결제는 **자동으로 감지** 되는 앱" 으로 바꾼다.
+- 핵심 전환은 개입 시점을 **결제 순간 → 결제 전(계획) + 결제 후(자동 정산)** 으로 옮기는 것이다. 카운터 앞에서는 앱을 열지 않는다.
+- 세 가지 피드백(눈치, 몰입도, 복귀 귀찮음)은 전부 이 전환 하나로 구조적으로 풀린다. 나머지는 자산 퀄리티와 플랫폼 연동 문제다.
+
+---
+
+## 1. HardPay 분석: 코드로 읽은 기획 의도와 현재 상태
+
+### 1.1 코드에 박혀 있던 기획 의도
+
+HardPay 코드(5커밋, 2026-06-19 하루 작업)를 보면 의도가 꽤 명확하게 구조에 반영돼 있다.
+
+| 설계 결정 | 코드 위치 | 의도 해석 |
+|---|---|---|
+| 잔액을 저장하지 않고 원장 합산으로 파생 | `LedgerDao.observeBalance()` | 단일 진실(single source of truth). 잔액 불일치 버그를 구조적으로 차단 |
+| 그릇(`BowlSelection`)을 입력 방식과 분리된 순수 모델로 | `domain/BowlSelection.kt` | 버튼 탭 → 드래그앤드랍으로 바뀌어도 도메인은 그대로. 처음부터 인터랙션 교체를 염두 |
+| `PendingPayment` 를 DataStore 에 영속화 | `PendingPaymentStore` | 삼성페이 갔다가 앱이 죽어도 "썼냐?" 팝업 보장 |
+| 꺼낸 금액(`selectedAmount`)과 실제 결제액(`amount`)을 **따로** 저장 | `LedgerEntry` | "현금 감각"과 "실제"의 괴리를 데이터로 남기려는 의도. 이건 좋은 결정이고 RealCash 에도 계승 |
+| 삼성페이는 SDK 없이 런치 인텐트만 | `SamsungPayLauncher.kt` | 결제 결과 콜백 없음을 인지하고 `onResume` 으로 우회. 주석에 "NOT a Samsung Pay callback" 이라고 두 번 강조 |
+| 드래그 고스트를 `graphicsLayer` 지연 읽기로 | `DenomGhost` | 매 프레임 리컴포즈 회피. 인터랙션 성능에 신경 쓴 흔적 |
+
+즉 HardPay 의 핵심 가설은 **"디지털 결제 앞에 현금 결제의 인지 마찰(cognitive friction)을 끼워넣으면 지출이 준다"** 였고, 구조는 **원장 / 그릇 / 결제확인** 세 계층이었다.
+
+### 1.2 구현 수준 (무엇이 진짜고 무엇이 임시였나)
+
+**완성된 것**
+- Room 원장 + 잔액 파생, 가계부 수정
+- 그릇 모델, pending 영속화, 확인 다이얼로그, 미확정 배너
+- 드래그앤드랍 + 고스트 + 드롭존 하이라이트 + 햅틱
+
+**반쪽인 것**
+- 지폐/동전 UI: `BillShape`/`CoinShape` 는 그라데이션 박스 + 숫자 텍스트. 마지막 커밋 "feat: 지폐 UI 추가" 가 여기서 멈춤.
+
+**가짜/임시였던 것 (이게 중요)**
+- `supplyMap = DENOMINATIONS.associateWith { 10 }` — 팔레트의 권종 재고는 **항상 10장씩 고정**, `remember` 로만 유지되어 앱 재시작 시 리셋. 실제 보유 권종이 아니다.
+- 잔액 분해 `breakdown(balance)` (greedy) 와 팔레트 재고가 **서로 무관**. 잔액 3만원이어도 5만원권을 꺼낼 수 있고, 결제 확정 시 잔액은 음수로 내려간다(빨간색 표시).
+- 탭으로 담으면 재고가 안 줄고 드래그로 담으면 줄어든다 (`onDenomSelected` vs `onDragEnd` 비대칭). 재고 개념이 아직 설계되지 않았다는 증거.
+
+**없는 것**
+- 결제 감지, 권종 보유 상태 영속화, 거스름돈 개념, 환전(5만원→1만원×5), 온보딩, 테스트
+
+### 1.3 피드백 3가지를 코드 관점에서 재해석
+
+> 1. 결제 당시에 켜면 알바생이나 뒷사람 눈치가 보여서 쓰기 꺼려진다.
+
+- 앱 구조상 `startPayment()` 가 삼성페이를 띄우는 **유일한 진입점** 이고, 그 직전에 드래그앤드랍을 해야 한다. 즉 앱이 사용자에게 개입을 요구하는 타이밍이 **카운터 앞, 결제 직전 한 곳** 뿐이다.
+- 이건 UI 문제가 아니라 **개입 시점(timing) 문제** 다. 드래그를 아무리 빠르게 만들어도 줄 서서 하는 행위 자체가 어색하다.
+
+> 2. 지폐나 동전 퀄리티가 낮아서 몰입도가 떨어진다.
+
+- 자산 퀄리티는 맞다. 그런데 더 큰 원인이 하나 있다: `supplyMap` 이 매번 10장으로 리셋되니 사용자가 보는 건 **"내 지갑"이 아니라 "무한 ATM"** 이다. 어제 꺼낸 5만원권이 오늘 다시 그 자리에 있으면 소유감이 생길 수 없다.
+- 몰입은 **그림 퀄리티 × 개체의 영속성(identity)** 이다. 둘 다 필요하다. 사용자가 말한 "처음 받은 돈에서 쓰지 않은 것들이 그대로 유지되길 원한다" 는 요구가 정확히 이 지점이다.
+
+> 3. 계산 후 앱에 다시 접속해서 버튼 누르는 게 귀찮다.
+
+- `onResume` 의존 + `ConfirmPaymentDialog` 에서 실제 금액을 **손으로 입력**. 결제 결과를 앱이 알 방법이 없어서 생긴 구조다.
+- 부수 문제: `startPayment()` 는 pending 이 남아있으면 새 결제를 막는다. 한 번 확인을 미루면 다음 결제가 막히는 UX 함정이 코드에 있다. 자동 감지로 대체하면 이 함정도 함께 사라진다.
+
+### 1.4 HardPay 에서 가져갈 것 / 버릴 것
+
+| 계승 | 폐기 |
+|---|---|
+| 원장 파생 잔액 (단일 진실) | 결제 직전 개입 플로우 |
+| 그릇(=손에 들기) 순수 모델 | 10장 고정 무한 재고 |
+| 꺼낸 금액 vs 실제 금액 분리 기록 | 수동 금액 입력 확인 다이얼로그 (폴백으로만 유지) |
+| 드래그앤드랍 + 햅틱 인터랙션 패턴 | 그라데이션 박스 지폐 |
+| pending 영속화 사고방식 | 삼성페이 런치 인텐트 (결제는 사용자가 평소대로 함) |
+
+---
+
+## 2. 핵심 통찰: "현금 효과" 의 진짜 메커니즘
+
+행동경제학에서 현금이 카드보다 지출을 억제하는 이유(pain of paying, Prelec & Loewenstein 1998; Raghubir & Srivastava 2008)를 분해하면 네 가지다.
+
+| 메커니즘 | 설명 | HardPay | RealCash |
+|---|---|---|---|
+| **(a) 유한한 물리적 재고** | 지갑에 있는 만큼만 쓸 수 있다. 큰 지폐가 깨지면 눈에 보이게 줄어든다 | ✗ (무한 재고) | ✅ 지폐 개체 영속화 |
+| **(b) 꺼내는 행위의 고통** | 지폐를 세고 건네는 순간의 손실 체감 | ✅ (유일하게 구현) | ✅ 시점을 "계획 순간"으로 이동 |
+| **(c) 거슬러 받는 피드백** | 5만원 내고 잔돈 받으면 "5만원이 깨졌다"는 감각 | ✗ | ✅ 거스름돈 자동 계산 |
+| **(d) 지갑을 열 때마다 보이는 잔액** | 수동적 노출. 의식하지 않아도 남은 돈이 눈에 들어옴 | △ (숫자만) | ✅ 지갑 홈 + 위젯 |
+
+HardPay 는 (b) 하나만 구현했고, 그마저도 가장 사회적 비용이 큰 타이밍에 배치했다. RealCash 는 (a)(c)(d) 를 추가하고 (b) 를 결제 전 계획 시점으로 옮긴다.
+
+---
+
+## 3. RealCash 제품 컨셉
+
+### 3.1 컨셉 문장
+
+> **"카드로 내지만, 지갑은 현금처럼."**
+> 결제 수단은 그대로 둔다. 바뀌는 건 돈을 **보고, 꺼내고, 거슬러 받는 감각** 이다.
+
+### 3.2 설계 원칙 3가지
+
+1. **결제 순간에 앱을 열지 않는다 (Zero-touch at checkout)**
+   카운터 앞에서 사용자가 해야 할 일은 평소처럼 삼성페이/애플페이/카드를 내는 것뿐이다.
+2. **지폐는 개체다 (Bills are objects)**
+   각 지폐는 ID 를 가진 영속 개체. 자동으로 최적화·재분배되지 않는다. 5만원권이 1만원권 5장으로 바뀌는 건 사용자가 직접 환전할 때만이다.
+3. **정산은 자동, 결정은 수동 (Auto-detect, manual decide)**
+   결제 감지와 거스름돈 계산은 앱이 한다. 어떤 지폐를 꺼낼지, 환전할지, 남은 돈을 이월할지는 사용자가 한다.
+
+### 3.3 새 사용자 플로우
+
+```
+[A] 용돈 받기 ──▶ [B] 꺼내기(계획) ──▶ [C] 결제(평소대로) ──▶ [D] 자동 감지 ──▶ [E] 거스름돈 ──▶ [G] 주간 마감
+                        │                                           │
+                        └── 안 꺼내고 결제 ────────────────────────┘ (자동 차감, "직접 꺼내지 않은 결제" 표시)
+                                                [F] 환전 (언제든, 사용자 명시)
+```
+
+**[A] 용돈 받기 (Allowance)**
+- 기간(주/월)과 예산을 정하면 **권종 조합을 사용자가 고른다.** ATM 처럼: "5만원권 2장 + 1만원권 5장 + 5천원권 2장".
+- 이 조합이 그대로 지갑에 들어간다. 이후 앱은 이 지폐들을 절대 자동 재편성하지 않는다.
+- 이월 정책: 기간 종료 시 남은 지폐는 (1) 다음 기간으로 그대로 이월 (2) 저금통으로 이동 — 사용자가 선택.
+
+**[B] 꺼내기 (Hand / 손에 들기) — HardPay 그릇의 진화형**
+- 시점: **집에서 나가기 전, 매장을 둘러보는 중, 장바구니에 담는 중.** 카운터가 아니다.
+- 예상 금액을 입력하거나, 그냥 지폐를 드래그해서 "손에 든다".
+- 부족하면 즉시 피드백: "지갑에 1만 2천원 남았어요. 5천원 부족".
+- 손에 든 상태는 영속화되고 TTL 을 가진다(예: 6시간). 결제가 감지되지 않으면 지갑으로 자동 복귀 + 알림 "쓰지 않은 3만원을 지갑에 다시 넣었어요".
+- 잠금화면 위젯 / Live Activity 에 "손에 든 돈 ₩30,000" 표시. 매장에서 폰을 꺼내도 결제 앱을 보는 것처럼 자연스럽다.
+
+**[C] 결제 (Pay)**
+- 사용자는 삼성페이/애플페이/실물카드로 평소처럼 결제. RealCash 는 아무것도 하지 않는다.
+
+**[D] 자동 감지 (Detect)**
+- 결제 알림(삼성월렛, 토스, 카드사 앱)을 읽어 금액·가맹점·시각을 파싱.
+- 손에 든 금액과 매칭:
+  - 정확히 일치 → 자동 정산. 알림: "정산 완료. 스타벅스 ₩6,500".
+  - 손에 든 돈 > 결제액 → 거스름돈 계산 후 자동 정산. 알림: "거스름돈 ₩3,500 을 지갑에 넣었어요".
+  - 손에 든 돈 < 결제액 → 부족분을 지갑에서 자동으로 꺼냄(큰 권종부터) + 거스름돈. 알림에 "지갑에서 1만원권 1장을 추가로 꺼냈어요" 명시.
+  - 손에 든 돈 없음 → 지갑에서 자동 차감. 이 결제는 **"직접 꺼내지 않은 결제"** 뱃지가 붙고, 다음 홈 진입 시 어떤 지폐가 나갔는지 애니메이션으로 보여준다. (편의와 마찰의 균형: 자동이지만 숨기지 않는다)
+  - 파싱 신뢰도 낮음 → 알림 액션 "맞아요 / 아니에요" 로 확인. 앱 진입 불필요.
+- 중복 제거: 삼성월렛 푸시 + 카드사 푸시가 같은 결제로 두 번 올 수 있음. 금액 + 시간창(예: 2분) + 가맹점 유사도로 dedupe.
+- 취소/환불 알림: 역방향 정산(지폐를 거스름돈 규칙으로 다시 지갑에).
+
+**[E] 거스름돈 (Change)**
+- 거스름돈은 **최소 개수 권종 조합** 으로 들어온다(실제 가게가 주는 방식). 원화 권종은 canonical 하므로 greedy 가 최적.
+- 결과적으로 큰 지폐가 사라지고 잔돈이 쌓인다 → "지폐가 깨지는 고통" 이 자연 발생.
+- 잔돈이 많이 쌓이면 다음 꺼내기에서 "잔돈으로 딱 맞춰 내기" 를 제안(현금 사용자가 실제로 하는 행동).
+
+**[F] 환전 (Exchange)**
+- 5만원권 1장 → 1만원권 5장 같은 교환을 사용자가 명시적으로 수행. 자동 아님.
+- 사용자가 말한 "귀찮지만 아날로그 감성 재미" 가 여기다. 환전 UI 자체를 조금 번거롭게(은행 창구 느낌) 만드는 것도 의도적 마찰로서 선택지.
+
+**[G] 주간/월간 마감 (Review)**
+- 기간 끝에 지갑을 펼쳐 보여준다: 남은 지폐, 깨진 큰 지폐 수, "직접 꺼내지 않은 결제" 비율, 꺼낸 금액 vs 실제 금액 괴리(HardPay 에서 계승한 데이터).
+- 남은 돈 이월 or 저금통.
+
+### 3.4 눈치 문제(피드백 1) 재검증
+
+- 결제 직전 개입이 사라졌으므로 구조적으로 해결.
+- 매장에서 폰을 꺼내 보는 순간이 남는다면(예상 금액 맞춰 꺼내기), 그건 "결제 앱 확인" 과 구분되지 않는다. 위젯/Live Activity 로 앱 진입 없이 확인 가능하게 하면 더 줄어든다.
+
+### 3.5 "그냥 결제" 모드가 너무 편해지는 리스크
+
+- 안 꺼내고 결제해도 자동으로 차감되면 현금 효과가 희석될 수 있다.
+- 대응: (1) 자동 차감은 **큰 권종부터** 꺼내서 거스름돈이 잔뜩 생기게 한다(의도적 불편) (2) 홈 진입 시 반드시 "지난 결제에서 나간 지폐" 애니메이션을 본다 (3) 주간 마감에서 "직접 꺼낸 비율" 을 보여준다. 마찰을 **결제 순간이 아닌 다른 순간으로 재배치** 하는 것이다.
+
+### 3.6 나중 아이디어 (Phase 3+)
+
+- **봉투 예산법(envelope budgeting)**: 식비 봉투, 커피 봉투처럼 지갑을 여러 봉투로 나눔. 현금 사용자의 실제 관행이고 지폐 개체 모델 위에 자연스럽게 올라간다.
+- 지폐 마모(worn) 상태: 오래 가진 지폐는 조금 낡아 보임. 소유감 강화.
+- 가족/공유 지갑.
+
+---
+
+## 4. 결제 감지 — 플랫폼별 기술 조사 결과
+
+### 4.1 Android
+
+**경로: `NotificationListenerService` (알림 접근 권한)**
+
+- 삼성월렛은 등록 카드 결제 시 **앱 내 PUSH 로 결제 내역을 전달하고 SMS 로는 보내지 않는다** (삼성 커뮤니티 공식 답변 기준). 토스·카드사 앱도 결제 승인 푸시를 보낸다. 즉 알림 읽기가 올바른 경로다.
+- SMS 읽기(`READ_SMS`)는 Play 정책상 가계부 용도로 사용 불가. 알림 접근은 별도의 **특별 권한(Special app access)** 으로, 런타임 다이얼로그가 아니라 사용자가 설정 화면에서 직접 켜야 한다. 온보딩 UX 에 반영 필요.
+- Play 심사: 알림 접근에 전용 선언 폼이 있다는 공식 문서는 이번 조사에서 확인하지 못했다. 다만 민감 권한 일반 정책("핵심 기능에 필수, 눈에 띄는 고지, 최소 수집")이 적용된다고 보고 설계한다. 한국 가계부 앱들(편한가계부 등)이 수년간 같은 방식으로 운영 중이므로 경로 자체는 검증됐다. 데이터는 **온디바이스 처리, 서버 전송 없음** 을 명시하면 심사 리스크가 줄어든다.
+- 파싱 전략: 패키지별 규칙 파서(삼성월렛 `com.samsung.android.spay`, 토스 `viva.republica.toss`, 카드사 앱들) + 금액 정규식 + 가맹점 추출 + 신뢰도 점수. 규칙은 **원격 설정(Remote Config)** 으로 업데이트 가능하게 하여 알림 문구 변경에 앱 업데이트 없이 대응.
+- **미확인 사항**: 삼성월렛·토스 알림의 실제 문구 포맷은 공개 자료가 없다. **실기기에서 알림 샘플을 수집하는 것이 Phase 0 의 1순위 과제** 다. (디버그 모드에서 수신 알림 원문을 로그로 저장하는 수집 도구를 먼저 만든다.)
+- 폴백: 결제 앱 영수증 화면을 **공유 시트** 로 RealCash 에 보내기 / 수동 입력(HardPay 다이얼로그 계승).
+
+### 4.2 iOS
+
+**주 경로: iOS 27 단축어 "알림 수신 시" 자동화 트리거 (2026년 신규)**
+
+- iOS 27 에서 단축어 자동화에 "특정 앱의 알림을 받으면" 트리거가 추가됐다. 알림 앱 선택 + 키워드 필터가 가능하고, 알림 제목/본문이 단축어 입력으로 전달된다. 동료분이 말한 기능이 이것으로 보인다.
+- 설계: RealCash iOS 앱이 **App Intent** (`RecordDetectedPaymentIntent(title, body, sourceApp)`) 를 노출 → 사용자가 단축어 자동화에서 "삼성월렛/토스/카드사 앱 알림 수신 시 → RealCash 결제 기록" 을 연결 → 앱이 Android 와 **동일한 파서** 로 처리.
+- 사용자 설정 요구: "실행 전 확인" 끄기, "잠금 상태에서 실행 허용" 켜기. `.shortcut` 파일을 앱이 제공하고 온보딩에서 가져오기 가이드를 보여준다.
+- 리스크: 단축어는 사용자가 쉽게 끄거나 지울 수 있고, 앱이 그 상태를 직접 확인할 수 없다. → "최근 N일 감지 없음" 휴리스틱으로 재설정 안내.
+- iOS 26 이하: 자동 감지 불가. 공유 시트 + 수동 입력으로 동작. 지원 OS 를 iOS 27+ 로 잡을지는 결정 사항.
+
+**보조 경로: iOS 17+ "거래(Transaction)" 트리거**
+
+- 애플페이 결제 시 가맹점·금액·카드를 단축어에 전달한다. 오프라인 단말 탭만 감지되고 온라인 결제는 안 된다(커뮤니티 보고).
+- 한국은 2026년 중반 기준으로도 현대카드만 확실하다. 추가 카드사 도입은 지연 보도가 반복됨. **애플페이 사용자 한정 보조 경로** 로만 취급.
+
+### 4.3 공통 매칭 엔진 (shared)
+
+```
+DetectedPayment(amount, merchant?, sourceApp, detectedAt, confidence)
+        │
+        ▼
+ dedupe(window=2min, amount, merchant~)
+        │
+        ▼
+ match(Hand?) ──▶ EXACT        → autoSettle
+             ──▶ HAND_OVER     → change = minimalChange(hand − amount); autoSettle
+             ──▶ HAND_UNDER    → pullFromWallet(amount − hand, largestFirst); change; autoSettle(flag=ADDED_FROM_WALLET)
+             ──▶ NO_HAND       → pullFromWallet(amount, largestFirst); change; autoSettle(flag=NOT_HAND_PICKED)
+             ──▶ LOW_CONFIDENCE→ notify(confirm/reject)
+```
+
+파서·매칭·거스름돈 계산은 전부 순수 Kotlin 으로 공유 모듈에 두고 단위 테스트로 덮는다. 플랫폼 코드는 "알림 문자열을 가져오는 것" 까지만 한다.
+
+---
+
+## 5. 아키텍처 제안
+
+### 5.1 기술 스택: Kotlin Multiplatform + Compose Multiplatform (권장)
+
+| 선택지 | 장점 | 단점 | 판단 |
+|---|---|---|---|
+| **KMP + Compose Multiplatform** | Kotlin/Compose 그대로. 도메인·UI 공유. 드래그앤드랍 커스텀 제스처가 순수 Compose 라 공유 가능. CMP iOS 는 2025년 stable | iOS 프로덕션 사례가 Flutter 보다 적음. 텍스트 입력·접근성 등 iOS 디테일에서 가끔 걸림 | **권장**. 사용자가 Android 개발자라는 점이 결정적 |
+| Flutter | iOS 트랙레코드 최다, 패키지 풍부 | Dart 신규 학습. 기존 Compose 인터랙션 코드 폐기 | 차선 |
+| 네이티브 각각 | 플랫폼 디테일 최상 | UI 2배 작업. 사이드 프로젝트 규모에 과함 | 비권장 |
+
+**플랫폼 네이티브로 남기는 부분 (얇게)**
+- Android: `NotificationListenerService`, Glance 위젯, 햅틱
+- iOS: App Intents(단축어 수신), WidgetKit / Live Activity, 햅틱, `.shortcut` 배포
+
+### 5.2 모듈 구조
+
+```
+RealCash/
+├── shared/
+│   ├── domain/        # 순수 Kotlin. Bill, Wallet, Hand, Payment, ChangeCalculator, Matcher, NotificationParser
+│   ├── data/          # SQLDelight(원장/지폐), multiplatform DataStore(설정), RemoteConfig(파서 규칙)
+│   └── ui/            # Compose Multiplatform 화면 + 드래그앤드랍 + 지폐 렌더링
+├── androidApp/        # NotificationListenerService, Glance 위젯, 진입점
+├── iosApp/            # SwiftUI 셸, App Intents, WidgetKit/LiveActivity, Shortcut 파일
+└── docs/
+
+exec
+/bin/zsh -lc "find shared/ui -name AGENTS.md -o -name '*Wallet*' -o -name '*Screenshot*'; command -v rg" in /Users/jeonbyeongseon/realcash-worker/scripts/log/ui-worktree
+ succeeded in 0ms:
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/screenshot/ScreenshotTest$i_takeOutMidDrag$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/screenshot/ScreenshotTest$n_confirmedChangeChips$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/screenshot/ScreenshotTest.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/screenshot/ScreenshotTest$h_takeOutOverExpected$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/screenshot/ScreenshotTest$r_walletHomeThirtyBills$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/screenshot/ScreenshotTest$b_walletHomeWithAllowance$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/screenshot/ScreenshotTest$e_confirmPaymentsSheet$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/screenshot/ScreenshotTest$t_walletTapAndBack$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/screenshot/ScreenshotTest$q_walletHomeAllCoinsDark$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/screenshot/ScreenshotTest$p_manualPaymentSheet$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/screenshot/ScreenshotTest$o_walletHomeAllCoins$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/screenshot/ScreenshotTest$f_simulatorAfterAutoSettle$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/screenshot/ScreenshotTest$g_walletHomeDark$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/screenshot/ScreenshotTest$p_takeOutMidCoinDrag$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/screenshot/ScreenshotTest$k_ledger$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/screenshot/ScreenshotTest$l_settings$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/screenshot/ScreenshotTest$u_openWalletTrayAndDarkTheme$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/screenshot/ScreenshotTest$j_exchangeReceiveStep$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/screenshot/ScreenshotTest$seedPending$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/screenshot/ScreenshotTest$a_walletHomeEmpty$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/screenshot/ScreenshotTest$m_walletHomeAllBills$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/screenshot/ScreenshotTest$c_walletHomeWithHandAndPending$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/screenshot/ScreenshotTest$o_walletHomeAllCoins$1$invokeSuspend$$inlined$groupingBy$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/screenshot/ScreenshotTest$q_manualPaymentResult$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/screenshot/ScreenshotTest$t_openWalletFourBillsAndCoins$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/screenshot/ScreenshotTest$d_receiveAllowance$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/screenshot/ScreenshotTest$Companion.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/screenshot/ScreenshotTest$fixedClock$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/screenshot/ScreenshotTest$v_openWalletPaymentDialog$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/screenshot/ScreenshotTest$MovableClock.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/screenshot/ScreenshotTest$s_walletHomeMenuOpen$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenScreenshotTest$x_openWalletThirtyBills$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenSwayTest$swipingThirtyBillsTicksWithoutRecomposingCashOrPickingAnything$1$scene$1$1$1$1$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenModelTest$replacementFailureRestoresRepositoryStateAndDoesNotNavigate$1$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenModelTest$queuedNoOpDoesNotWriteAgainAndReorderingDoes$1$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenLayoutTest.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenModelTest$queuedDropSurvivesPartialReplacementFailureWithoutNavigating$1$1$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenModelTest$dropsDuringWriteSaveLatestTrayInOrderBeforeNavigation$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenModelTest$dropsDebounceWholeTrayReplacementAndEmptyTrayReturnsHand$1$1$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenModelTest$replacementFailureRestoresRepositoryStateAndDoesNotNavigate$1$2$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenModelTest$backSavesDraftAndNextVisitCreatesFreshModelThenCanReturnEveryUnit$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenGestureTest$pocketReflowDuringLongPressKeepsTheBillPressedAtDown$1$invokeSuspend$$inlined$groupingBy$2.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenModelTest$queuedNoOpDoesNotWriteAgainAndReorderingDoes$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenNavigationTest$longPressFrontBillDropReturnAndPaymentEntryWork$1$drag$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenModelTest$replacementFailureRestoresRepositoryStateAndDoesNotNavigate$1$2.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenGestureTest$pocketReflowDuringLongPressKeepsTheBillPressedAtDown$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenNavigationTest$longPressFrontBillDropReturnAndPaymentEntryWork$1$clock$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenModelTest$dropsDuringWriteSaveLatestTrayInOrderBeforeNavigation$1$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenGestureTest$pocketReflowDuringLongPressKeepsTheBillPressedAtDown$1$invokeSuspend$$inlined$groupingBy$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenModelTest$FailingIds.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenGestureTest$downDuringSaveStaysIgnoredUntilANewPress$1$scene$1$1$1$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenSwayTest$swipingThirtyBillsTicksWithoutRecomposingCashOrPickingAnything$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenModelTest$dropsDebounceWholeTrayReplacementAndEmptyTrayReturnsHand$1$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenModelTest$tapsAreLocalAndConfirmWritesExactlyOneHandDespiteRepeatedTaps$1$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenNavigationTest.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenModelTest$replacementFailureRestoresRepositoryStateAndDoesNotNavigate$1$1$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenScreenshotTest$w_longPressBillHeldAboveTray$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenNavigationTest$longPressFrontBillDropReturnAndPaymentEntryWork$1$haptics$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenGestureTest$w2_secondLongPressSurvivesAutoSave$1$invokeSuspend$pocketPoint$$inlined$groupingBy$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenGestureTest$w2_secondLongPressSurvivesAutoSave$1$clock$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenNavigationTest$longPressFrontBillDropReturnAndPaymentEntryWork$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenModelTest.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenModelTest$replacementFailureRestoresRepositoryStateAndDoesNotNavigate$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenGestureTest.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/PausedWalletWrites.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenSwayTest.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenModelTest$clock$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenModelTest$dropsDebounceWholeTrayReplacementAndEmptyTrayReturnsHand$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenScreenshotTest$w_longPressBillHeldAboveTray$1$clock$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenGestureTest$pocketReflowDuringLongPressKeepsTheBillPressedAtDown$1$scene$1$1$1$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenModelTest$tapsAreLocalAndConfirmWritesExactlyOneHandDespiteRepeatedTaps$1$1$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenGestureTest$downDuringSaveStaysIgnoredUntilANewPress$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenModelTest$returningLastUnitDuringWriteSavesEmptyTrayAndThenNavigates$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletPhysicsTest.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenSwayTest$swipingThirtyBillsTicksWithoutRecomposingCashOrPickingAnything$1$art$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenModelTest$tapsAreLocalAndConfirmWritesExactlyOneHandDespiteRepeatedTaps$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenModelTest$dropsDuringWriteSaveLatestTrayInOrderBeforeNavigation$1$1$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenModelTest$queuedNoOpDoesNotWriteAgainAndReorderingDoes$1$1$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenScreenshotTest$x_openWalletThirtyBills$1$clock$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenSwayTest$swipingThirtyBillsTicksWithoutRecomposingCashOrPickingAnything$1$haptics$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenScreenshotTest.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenGestureTest$w2_secondLongPressSurvivesAutoSave$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenModelTest$queuedDropSurvivesPartialReplacementFailureWithoutNavigating$1$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/walletopen/WalletOpenModelTest$queuedDropSurvivesPartialReplacementFailureWithoutNavigating$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/wallet/WalletHomeModelTest$coinOnlyWalletIsNonemptyWithoutSideLayers$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/wallet/WalletHomeModelTest$clock$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/wallet/WalletHomeModelTest$newSettlementShowsOneCompactMessageWithoutReplayingHistory$1$1$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/wallet/WalletHomeModelTest$thicknessBoundariesAndHandBalanceFollowRepositoryState$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/wallet/WalletHomeModelTest$walletTapHapticsAndPushedDestinationsReturnToHome$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/wallet/WalletHomeModelTest$newSettlementShowsOneCompactMessageWithoutReplayingHistory$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/wallet/WalletHomeModelTest$walletTapHapticsAndPushedDestinationsReturnToHome$1$haptics$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/wallet/WalletHomeModelTest$newSettlementShowsOneCompactMessageWithoutReplayingHistory$1$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/wallet/WalletHomeModelTest.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/wallet/WalletNavigationTest.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/wallet/WalletNavigationTest$withHome$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/wallet/WalletNavigationTest$clock$1.class
+shared/ui/build/classes/kotlin/jvm/test/com/jim/realcash/ui/wallet/WalletNavigationTest$Harness.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/RealCashAppKt$WalletScene$$inlined$animateFloat$2.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/RealCashAppKt$WalletScene$1$1$1.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/RealCashAppKt$WalletMenu$1$4$3$1$1.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/exchange/ExchangeModel$syncWithWallet$1.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/exchange/ExchangeModel$syncWithWallet$2.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/Screen$WalletOpen.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/RealCashAppKt$WalletScene$$inlined$animateFloat$1.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/RealCashAppKt$WalletScene$1$2$1.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/components/ClosedWalletKt.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/walletopen/WalletOpenUi.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/walletopen/WalletPhysicsKt.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/walletopen/WalletOpenModel$setOnTray$1.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/walletopen/WalletOpenModel.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/walletopen/WalletOpenScreenKt$WalletOpenScreen$1$1.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/walletopen/WalletOpenLayout$Companion.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/walletopen/WalletOpenPhysics.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/walletopen/WalletOpenScreenKt$WalletOpenContent$lambda$2$7$$inlined$sortedBy$1.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/walletopen/WalletOpenScreenKt$WhenMappings.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/walletopen/WalletOpenScreenKt$WalletOpenContent$2$1.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/walletopen/WalletOpenLayout.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/walletopen/WalletOpenScreenKt$WalletOpenScreen$3$1.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/walletopen/WalletOpenScreenKt.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/walletopen/WalletOpenScreenKt$WalletOpenScreen$2$1.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/walletopen/WalletOpenScreenKt$PickGhost$2$1$1.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/walletopen/WalletOpenLayoutKt.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/walletopen/ComposableSingletons$WalletOpenScreenKt.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/walletopen/WalletOpenScreenKt$PickGhost$1$1.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/walletopen/WalletOpenScreenKt$FallingCoin$1$1.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/walletopen/WalletMotionKt$walletGestures$1$1$held$1.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/walletopen/WalletOpenScreenKt$WalletOpenContent$lambda$2$13$0$$inlined$groupingBy$1.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/walletopen/WalletOpenModel$ui$1.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/walletopen/WalletMotionKt$walletGestures$1$1.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/walletopen/WalletMotionKt$walletGestures$1.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/walletopen/WalletOpenScreenKt$WalletOpenScreen$6$1$1.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/walletopen/WalletOpenScreenKt$WalletOpenScreen$4$1.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/walletopen/WalletOpenScreenKt$PickGhost$2$1.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/walletopen/WalletRect.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/walletopen/WalletMotionKt.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/walletopen/WalletOpenModel$save$2.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/walletopen/WalletOpenModel$present$$inlined$sortedBy$1.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/wallet/WalletHomeUi$Companion.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/wallet/WalletHomeModel$1$invokeSuspend$$inlined$map$1$2.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/wallet/WalletHomeModel$ui$1.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/wallet/WalletHomeModel$1$2.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/wallet/WalletHomeModel.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/wallet/WalletHomeModel$1$invokeSuspend$$inlined$map$1.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/wallet/WalletHomeModel$1.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/wallet/WalletHomeScreenKt.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/wallet/WalletHomeModel$1$invokeSuspend$$inlined$map$1$2$1.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/wallet/WalletHomeUi.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/wallet/WalletHomeModel$ticker$1.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/wallet/ComposableSingletons$WalletHomeScreenKt.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/RealCashAppKt$WalletScene$1$7$1.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/takeout/TakeOutModel$syncWithWallet$1.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/takeout/TakeOutModel$syncWithWallet$2.class
+shared/ui/build/classes/kotlin/jvm/main/com/jim/realcash/ui/Screen$WalletHome.class
+shared/ui/build/test-results/jvmTest/TEST-com.jim.realcash.ui.wallet.WalletNavigationTest.xml
+shared/ui/build/test-results/jvmTest/TEST-com.jim.realcash.ui.walletopen.WalletOpenGestureTest.xml
+shared/ui/build/test-results/jvmTest/TEST-com.jim.realcash.ui.walletopen.WalletOpenLayoutTest.xml
+shared/ui/build/test-results/jvmTest/TEST-com.jim.realcash.ui.walletopen.WalletPhysicsTest.xml
+shared/ui/build/test-results/jvmTest/TEST-com.jim.realcash.ui.walletopen.WalletOpenNavigationTest.xml
+shared/ui/build/test-results/jvmTest/TEST-com.jim.realcash.ui.walletopen.WalletOpenSwayTest.xml
+shared/ui/build/test-results/jvmTest/TEST-com.jim.realcash.ui.wallet.WalletHomeModelTest.xml
+shared/ui/build/test-results/jvmTest/TEST-com.jim.realcash.ui.walletopen.WalletOpenModelTest.xml
+shared/ui/build/test-results/jvmTest/TEST-com.jim.realcash.ui.screenshot.ScreenshotTest.xml
+shared/ui/build/test-results/jvmTest/TEST-com.jim.realcash.ui.walletopen.WalletOpenScreenshotTest.xml
+shared/ui/build/reports/tests/jvmTest/classes/com.jim.realcash.ui.walletopen.WalletOpenLayoutTest.html
+shared/ui/build/reports/tests/jvmTest/classes/com.jim.realcash.ui.walletopen.WalletOpenModelTest.html
+shared/ui/build/reports/tests/jvmTest/classes/com.jim.realcash.ui.walletopen.WalletOpenGestureTest.html
+shared/ui/build/reports/tests/jvmTest/classes/com.jim.realcash.ui.screenshot.ScreenshotTest.html
+shared/ui/build/reports/tests/jvmTest/classes/com.jim.realcash.ui.walletopen.WalletOpenNavigationTest.html
+shared/ui/build/reports/tests/jvmTest/classes/com.jim.realcash.ui.wallet.WalletHomeModelTest.html
+shared/ui/build/reports/tests/jvmTest/classes/com.jim.realcash.ui.walletopen.WalletOpenScreenshotTest.html
+shared/ui/build/reports/tests/jvmTest/classes/com.jim.realcash.ui.walletopen.WalletOpenSwayTest.html
+shared/ui/build/reports/tests/jvmTest/classes/com.jim.realcash.ui.walletopen.WalletPhysicsTest.html
+shared/ui/build/reports/tests/jvmTest/classes/com.jim.realcash.ui.wallet.WalletNavigationTest.html
+shared/ui/src/jvmTest/kotlin/com/jim/realcash/ui/screenshot/ScreenshotTest.kt
+shared/ui/src/jvmTest/kotlin/com/jim/realcash/ui/walletopen/WalletOpenLayoutTest.kt
+shared/ui/src/jvmTest/kotlin/com/jim/realcash/ui/walletopen/WalletPhysicsTest.kt
+shared/ui/src/jvmTest/kotlin/com/jim/realcash/ui/walletopen/WalletOpenNavigationTest.kt
+shared/ui/src/jvmTest/kotlin/com/jim/realcash/ui/walletopen/WalletOpenSwayTest.kt
+shared/ui/src/jvmTest/kotlin/com/jim/realcash/ui/walletopen/WalletOpenGestureTest.kt
+shared/ui/src/jvmTest/kotlin/com/jim/realcash/ui/walletopen/WalletOpenModelTest.kt
+shared/ui/src/jvmTest/kotlin/com/jim/realcash/ui/walletopen/WalletOpenScreenshotTest.kt
+shared/ui/src/jvmTest/kotlin/com/jim/realcash/ui/wallet/WalletNavigationTest.kt
+shared/ui/src/jvmTest/kotlin/com/jim/realcash/ui/wallet/WalletHomeModelTest.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/components/ClosedWallet.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/walletopen/WalletOpenScreen.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/walletopen/WalletMotion.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/walletopen/WalletOpenLayout.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/walletopen/WalletOpenModel.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/walletopen/WalletPhysics.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/wallet/WalletHomeScreen.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/wallet/WalletHomeModel.kt
+/opt/homebrew/Caskroom/codex/0.164.0/codex-path/rg
+
+ exited 130 in 38750ms:
+/Users/jeonbyeongseon/realcash-worker/scripts/log/ui-worktree
+
+ exited 130 in 14149ms:
+exec
+/bin/zsh -lc 'cat shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/components/ClosedWallet.kt shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/wallet/WalletHomeScreen.kt' in /Users/jeonbyeongseon/realcash-worker/scripts/log/ui-worktree
+ succeeded in 0ms:
+package com.jim.realcash.ui.components
+
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.dp
+import com.jim.realcash.ui.Strings
+import com.jim.realcash.ui.resources.Res
+import com.jim.realcash.ui.resources.wallet_closed
+import org.jetbrains.compose.resources.painterResource
+
+/** Reviewed closed-wallet art; its silhouette also forms the dark, stacked leather edges. */
+@Composable
+fun ClosedWallet(sideLayers: Int, opening: Float, enabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val painter = painterResource(Res.drawable.wallet_closed)
+    Box(
+        modifier.padding(bottom = 18.dp)
+            .clickable(enabled = enabled, role = Role.Button, onClickLabel = Strings.OPEN_WALLET, onClick = onClick)
+            .graphicsLayer {
+                scaleX = 1f + 0.06f * opening
+                scaleY = 1f + 0.06f * opening
+            },
+    ) {
+        for (layer in sideLayers downTo 1) {
+            Image(
+                painter, contentDescription = null,
+                colorFilter = ColorFilter.tint(Color(0xFF251F1B).copy(alpha = 0.82f)),
+                modifier = Modifier.fillMaxWidth().aspectRatio(1024f / 540f).offset(y = (layer * 2.5f).dp),
+            )
+        }
+        Image(
+            painter, contentDescription = Strings.OPEN_WALLET,
+            modifier = Modifier.fillMaxWidth().aspectRatio(1024f / 540f).graphicsLayer {
+                rotationX = -70f * opening
+                cameraDistance = 32f * density
+                transformOrigin = TransformOrigin(0.5f, 0f)
+            },
+        )
+    }
+}
+package com.jim.realcash.ui.wallet
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import com.jim.realcash.ui.Strings
+import com.jim.realcash.ui.components.ClosedWallet
+import com.jim.realcash.ui.format.formatted
+
+/** Home v2: a period, the remaining money, and a closed wallet. */
+@Composable
+fun WalletHomeScreen(
+    model: WalletHomeModel,
+    onReceiveAllowance: () -> Unit,
+    onOpenPending: () -> Unit,
+    onOpenWallet: () -> Unit,
+    modifier: Modifier = Modifier,
+    opening: Float = 0f,
+    enabled: Boolean = true,
+    menu: @Composable () -> Unit = {},
+) {
+    val ui by model.ui.collectAsState()
+    WalletHomeContent(ui, onReceiveAllowance, onOpenPending, onOpenWallet, modifier, opening, enabled, menu)
+}
+
+/** Stateless home body, with the overflow menu supplied by the app shell. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun WalletHomeContent(
+    ui: WalletHomeUi,
+    onReceiveAllowance: () -> Unit,
+    onOpenPending: () -> Unit,
+    onOpenWallet: () -> Unit,
+    modifier: Modifier = Modifier,
+    opening: Float = 0f,
+    enabled: Boolean = true,
+    menu: @Composable () -> Unit = {},
+) {
+    Box(modifier.fillMaxSize()) {
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 80.dp, bottom = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(ui.periodLabel, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(8.dp))
+            // Flow to a second line at large accessibility font sizes instead of truncating the amount.
+            FlowRow(
+                Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Text(
+                    ui.balance.formatted(),
+                    style = MaterialTheme.typography.displayLarge.copy(fontWeight = FontWeight.Bold),
+                    textAlign = TextAlign.Center,
+                )
+                Text(
+                    Strings.REMAINING,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.align(Alignment.CenterVertically).padding(start = 8.dp),
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "${ui.periodRange} · ${Strings.daysLeft(ui.daysLeft)}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(88.dp))
+            FlowRow(
+                Modifier.fillMaxWidth(0.86f).heightIn(min = 48.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                if (ui.pendingCount > 0) {
+                    Surface(
+                        onClick = onOpenPending, enabled = enabled,
+                        color = MaterialTheme.colorScheme.tertiaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                        shape = MaterialTheme.shapes.large,
+                    ) { Text(Strings.pendingBadge(ui.pendingCount), Modifier.padding(horizontal = 14.dp, vertical = 12.dp), style = MaterialTheme.typography.labelLarge) }
+                }
+                if (ui.handTotal.value > 0) {
+                    Text(
+                        Strings.handBadge(ui.handTotal.formatted()),
+                        Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            ClosedWallet(ui.sideLayers, opening, ui.loaded && enabled, onOpenWallet, Modifier.fillMaxWidth(0.86f))
+            if (ui.loaded && ui.walletEmpty) {
+                Spacer(Modifier.height(30.dp))
+                Button(onClick = onReceiveAllowance, enabled = enabled, modifier = Modifier.fillMaxWidth(0.72f).height(56.dp)) {
+                    Text(Strings.ADD_ALLOWANCE, style = MaterialTheme.typography.titleMedium)
+                }
+            }
+        }
+        Box(Modifier.align(Alignment.TopEnd).padding(top = 8.dp, end = 12.dp)) { if (enabled) menu() }
+    }
+}
+
+exec
+/bin/zsh -lc "sed -n '290,450p' docs/01-realcash-analysis-and-design.md; sed -n '1,150p' docs/02-engineering-plan.md; cat shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/wallet/WalletHomeModel.kt" in /Users/jeonbyeongseon/realcash-worker/scripts/log/ui-worktree
+ succeeded in 0ms:
+    val changeBillIds: List<BillId>,     // 새로 생성된 거스름돈 지폐
+    val flags: Set<SettlementFlag>,      // NOT_HAND_PICKED | ADDED_FROM_WALLET | MANUAL
+)
+
+// 원장은 append-only 이벤트. 잔액·지갑 상태는 전부 파생 (HardPay 원칙 계승)
+sealed interface LedgerEvent {
+    data class AllowanceReceived(val bills: List<Bill>) : LedgerEvent
+    data class MovedToHand(val hand: Hand) : LedgerEvent
+    data class HandReturned(val handId: HandId, val reason: ReturnReason) : LedgerEvent
+    data class PaymentDetected(val payment: DetectedPayment) : LedgerEvent
+    data class Settled(val settlement: Settlement) : LedgerEvent
+    data class Exchanged(val from: List<BillId>, val to: List<Bill>) : LedgerEvent
+    data class Adjusted(val reason: String, val delta: Int) : LedgerEvent   // 수동 보정
+}
+```
+
+- 잔액 = `sum(IN_WALLET) + sum(IN_HAND)`. 저장하지 않는다.
+- "꺼낸 금액 vs 실제 금액" 은 `Hand.expectedAmount` / `sum(hand bills)` / `DetectedPayment.amount` 세 값으로 HardPay 보다 더 풍부하게 남는다.
+
+### 5.4 거스름돈·자동 차감 알고리즘
+
+- **거스름돈**: 원화 권종(50000/10000/5000/1000/500/100/50/10)은 canonical coin system 이므로 greedy 가 최소 개수를 보장한다. 단순 greedy 로 간다.
+- **자동 차감(손에 든 돈 부족/없음)**: 지갑에서 **금액 이상이 되는 최소 조합** 을 고르되, 동률이면 **큰 권종 우선** 으로 꺼낸다. 의도적으로 거스름돈이 많이 생기게 하여 "직접 안 꺼내면 지폐가 깨진다" 는 마찰을 만든다.
+- **잔돈 털기 제안**: 지갑의 소액 권종만으로 결제액을 정확히 맞출 수 있으면 꺼내기 화면에서 제안한다.
+
+### 5.5 지폐 자산 전략
+
+- GPT 이미지 생성으로 권종별 앞면 디자인 → 벡터화 또는 고해상도 래스터 (hamdoku 경험 활용).
+- **실물 원화에 최대한 가깝게 그리되 초상은 뺀다.** (2026-11-04 결정) 2024-09-01 개정 「한국은행권 및 주화의 도안 이용기준」은 영리 이용을 허용하고, 화면 표시는 인쇄물·모조품 규격 대상이 아니다. 금지되는 것은 도안 인물의 분리·변형이므로 초상 자리만 뒷면 모티프나 한글 액면으로 대체한다. 근거: `docs/reference/bok-currency-design-guidelines-2024-09.pdf`.
+- 물리감: 드래그 시 미세한 기울기와 그림자, 드롭 시 바운스, 같은 권종 겹침 스택(HardPay `backLayers` 아이디어 계승), 다크모드 변형.
+- 자산은 `shared/ui` 리소스로 두어 양 플랫폼 동일.
+
+### 5.6 화면 구성 (MVP)
+
+1. **지갑 홈** — 지폐가 실물처럼 겹쳐 배치. 상단 "손에 든 돈" 영역. 이번 기간 잔여·종료일.
+2. **용돈 받기** — 금액 입력 → 권종 조합 선택(ATM 느낌) → 지갑으로 떨어지는 애니메이션.
+3. **꺼내기** — HardPay 드래그앤드랍 계승. 예상 금액 입력(선택) → 부족/초과 즉시 표시 → "손에 들기".
+4. **정산 알림 / 확인 시트** — 자동 정산 결과, 저신뢰 확인, 거스름돈 애니메이션.
+5. **환전** — 지갑 지폐 선택 → 바꿀 권종 조합 → 교환.
+6. **가계부 / 마감** — 결제 리스트(직접 꺼낸/자동 뱃지), 기간 마감 리뷰.
+7. **설정 / 연결** — Android: 알림 접근 켜기 + 감지 소스 앱 선택. iOS: 단축어 설치 가이드 + 테스트 알림 보내기.
+
+---
+
+## 6. 로드맵
+
+### Phase 0 — 기술 검증 스파이크 (1~2주)
+목표: 가장 불확실한 세 가지를 코드 한 줄 설계 전에 확인한다.
+- [ ] **Android 알림 샘플 수집**: `NotificationListenerService` 로 삼성월렛·토스·카드사 앱 알림 원문(패키지, title, text, extras)을 로그에 쌓는 디버그 앱. 실제 결제 10~20건 수집. 이 결과가 파서 규칙의 기준이 된다.
+- [ ] **iOS 27 단축어 → App Intent PoC**: 임의 앱 알림을 트리거로 title/body 를 App Intent 로 받는 최소 앱. "실행 전 확인 끄기", "잠금 상태 실행" 동작 확인. iOS 27 미만 기기에서의 폴백 확인.
+- [ ] **Compose Multiplatform iOS 드래그앤드랍 성능**: HardPay 의 `DenomGhost`/`detectDragGestures` 를 CMP 로 옮겨 iOS 시뮬레이터·실기기에서 60fps 확인.
+
+### Phase 1 — Android MVP (3~4주)
+- 지폐 개체 모델 + SQLDelight 원장
+- 용돈 받기 / 지갑 홈 / 꺼내기 / 환전
+- 알림 감지(삼성월렛 + 토스 우선) + 매칭 엔진 + 거스름돈
+- 수동 입력 폴백
+- 임시 자산(HardPay 수준) 으로 플로우 먼저 검증
+
+### Phase 2 — iOS (3~4주)
+- CMP 로 공유 UI 그대로 올림
+- App Intents + `.shortcut` 배포 + 온보딩
+- 위젯(Glance / WidgetKit), Live Activity "손에 든 돈"
+
+### Phase 3 — 몰입도 (2~3주)
+- GPT 기반 지폐 자산 교체, 물리 애니메이션
+- 주간/월간 마감 리뷰
+- 봉투 예산, 저금통, 지폐 마모
+
+### Phase 4 — 운영
+- 파서 규칙 원격 설정
+- 카드사 앱 확대, 취소/환불 처리 고도화
+
+---
+
+## 7. 리스크와 열린 질문
+
+### 리스크
+| 리스크 | 영향 | 대응 |
+|---|---|---|
+| 알림 문구 변경으로 파싱 실패 | 자동 정산 중단 | 원격 규칙 + 신뢰도 점수 + 알림 액션 확인 + 수동 폴백 |
+| Play 심사에서 알림 접근 거부 | Android 핵심 기능 불가 | 핵심 기능 설명, 온디바이스 처리 명시, 영수증 공유 시트 폴백 |
+| iOS 사용자가 단축어를 꺼버림 | 감지 중단을 앱이 모름 | "N일 감지 없음" 휴리스틱 안내 |
+| 중복 알림(삼성월렛 + 카드사) | 이중 차감 | 금액·시간창·가맹점 dedupe, 소스 앱 우선순위 설정 |
+| "그냥 결제" 가 너무 편해 현금 효과 희석 | 제품 가치 손상 | 큰 권종 우선 차감, 홈 진입 시 지폐 이탈 애니메이션, 마감 리뷰에 직접 꺼낸 비율 |
+| 실제 화폐 도안 저작권 | 스토어 반려·법적 이슈 | 오리지널 스타일라이즈드 디자인 |
+
+### 결정이 필요한 질문
+1. **예산 주기**: 주급형(주) vs 월급형(월)? 둘 다 지원하면 복잡도 증가. MVP 는 하나로.
+2. **iOS 최소 지원 버전**: iOS 27+ 만 지원하고 자동 감지를 전제로 갈지, 26 이하도 수동 모드로 받을지.
+3. **동전 범위**: 10원·50원까지 가면 거스름돈 UI 가 지저분해진다. 카드 결제 금액은 보통 10원 단위까지 나오므로 필요하긴 하다. "동전은 자동으로 동전지갑에 모인다" 같은 단순화 가능.
+4. **감지 소스 우선순위**: 삼성월렛 푸시 vs 카드사 푸시 중 어느 것을 1차 소스로 볼지 (Phase 0 샘플 보고 결정).
+5. **자동 차감 정책**: 손에 안 들고 결제했을 때 큰 권종 우선(마찰 강화) vs 최소 개수(편의)? 기본값 + 설정으로 둘지.
+
+---
+
+## 8. 다음 액션
+
+- **합의 필요**: 섹션 3 컨셉·원칙, 5.1 스택 결정, 7 의 질문 5개.
+- **합의 후 바로 시작**: Phase 0 스파이크. 특히 Android 알림 샘플 수집 앱은 하루면 만들 수 있고, 이 데이터 없이는 파서 설계를 확정할 수 없다.
+
+---
+
+## 참고 자료
+
+- 삼성월렛 결제 내역은 앱 PUSH 로만 전달(SMS 아님): [Samsung Community 답변](https://r1.community.samsung.com/t5/samsung-wallet/%EB%AC%B8%EC%9E%90-%EC%95%8C%EB%A6%BC-%EC%84%9C%EB%B9%84%EC%8A%A4-%EC%9E%90%EB%8F%99-%EB%93%B1%EB%A1%9D/m-p/22739185/highlight/true)
+- iOS 27 단축어 알림 트리거: [MacStories — Deflector](https://www.macstories.net/ios/deflector-turns-ios-27-notification-triggers-into-a-shortcut-launcher/), [Beard.fm 가이드](https://wiki.beard.fm/whats-new-ios-27/how-to-use-ios-27s-notification-triggers-for-advanced-cross-), [FWRDSMS — 자동화 실행 설정](https://www.fwrdsms.com/blog/shortcuts-automation-not-running)
+- iOS 17 Transaction 트리거: [iDrop News](https://www.idropnews.com/?p=197589), [r/shortcuts 튜토리얼](https://redlib.hbubli.cc/r/shortcuts/comments/17dqih9/tutorial_how_to_automatically_add_apple_pay)
+- 애플페이 한국 카드사 확대 지연: [다음 뉴스 2026-07](https://v.daum.net/v/20260720104621631)
+- Google Play 민감 권한 일반 정책: [Permissions Declaration](https://support.google.com/googleplay/android-developer/answer/9214102), [Sensitive Information](https://support.google.com/googleplay/android-developer/answer/16558241)
+- Android 알림 파싱 가계부 오픈소스 사례: [finance-notification-expense-manager](https://github.com/0rchid241/finance-notification-expense-manager/issues/2), [allowance-manager](https://github.com/2blue-99/allowance-manager)
+- KMP vs Flutter 2026: [Shorebird](https://shorebird.dev/blog/flutter-vs-kotlin-multiplatform), [CMP 1.8 iOS stable](https://besthub.dev/articles/compose-multiplatform-1-8-0-for-ios-stable-release-performance-benchmarks-and-new-features-d43d5b2a8dc4)
+- 행동경제학: Prelec & Loewenstein (1998) *The Red and the Black: Mental Accounting of Savings and Debt*; Raghubir & Srivastava (2008) *Monopoly Money: The Effect of Payment Coupling and Form on Spending Behavior*
+# RealCash 엔지니어링 계획 (Phase 0 ~ 1)
+
+> 작성일: 2026-11-04 · 상태: 확정(기본값). 기획 배경은 [01-realcash-analysis-and-design.md](01-realcash-analysis-and-design.md) 참고.
+> 역할: 설계·리뷰·피드백은 리드(Fable 5.1), 구현은 서브에이전트(Opus 5.5, effort high).
+
+---
+
+## 1. 미결 질문 5개에 대한 기본 결정
+
+| # | 질문 | 결정 | 이유 |
+|---|---|---|---|
+| 1 | 예산 주기 | **주간(weekly)** 기본, 시작 요일 설정 가능. 월간은 데이터 모델만 열어두고 UI는 Phase 3 | 피드백 루프가 짧을수록 "지폐가 줄어드는" 감각이 강하다. 지폐 개수도 UI가 감당할 범위에 머문다 |
+| 2 | iOS 최소 버전 | 앱은 **iOS 17+**, 자동 감지는 **iOS 27+** 에서만 활성. 그 아래는 수동/공유시트 모드 | App Intents 안정 버전이 17. 자동 감지만 27 게이트 |
+| 3 | 동전 범위 | **8개 권종 전부 개체로** 유지 (50000/10000/5000/1000/500/100/50/10) | 카드 결제는 10원 단위까지 나온다. UI 는 동전을 스택으로 압축 표시해 해결. 모델을 단순하게 유지 |
+| 4 | 감지 소스 우선순위 | 기본 **삼성월렛 > 토스 > 카드사 앱**, 2분 창 dedupe. Phase 0 샘플 수집 후 재검토 | 삼성월렛 푸시가 결제 수단과 가장 가깝다. 확정은 실데이터 보고 |
+| 5 | 자동 차감 정책 | 기본 **LARGEST_FIRST**(큰 권종 우선, 거스름돈 발생). 설정에서 FEWEST_UNITS 로 변경 가능(Phase 3) | 직접 안 꺼내면 지폐가 깨지게 하는 의도적 마찰 |
+
+추가 결정
+- **활성 Hand(손에 든 돈)는 동시에 하나만.** 매칭 로직을 단순하게 유지한다. 여러 개는 봉투 예산(Phase 3)과 함께 검토.
+- **잔액은 음수가 되지 않는다.** 지갑이 부족하면 `Settlement.shortfall` 에 부족분을 기록하고 지갑은 비워진다. (HardPay 는 음수 허용이었음)
+- **원장은 append-only 이벤트.** 지갑 상태는 이벤트 fold 로 파생. 이유: 취소/환불 역정산, "어떤 지폐가 나갔는지" 애니메이션, 마감 리뷰 통계가 전부 이벤트에서 나온다. 저장은 이벤트 테이블 + (선택) 스냅샷.
+
+---
+
+## 2. 환경 제약 (2026-11-04 기준 클라우드 세션)
+
+- JDK 21, Gradle 8.14.3 (`/opt/gradle/bin/gradle`), Kotlin 컴파일러는 Gradle 플러그인으로 받음.
+- **Android SDK 없음.** `dl.google.com` 이 네트워크 정책에서 차단되어 AGP·androidx·SDK 를 받을 수 없다. → Android 모듈은 사용자가 환경 설정 **Allowed domains** 에 `dl.google.com` 을 추가한 뒤 진행.
+- Maven Central 은 간헐적으로 429 를 돌려준다. Gradle 은 재시도하므로 실패 시 한 번 더 실행.
+- iOS 타깃은 Linux 호스트에서 컴파일 불가(Kotlin/Native 가 경고 후 스킵). Swift 코드는 사용자/동료가 Xcode 에서 검증.
+- 따라서 **이 세션에서 실제로 검증되는 것은 `shared/domain` 의 JVM 타깃 테스트** 다. 도메인 로직을 여기에 최대한 몰아넣는다.
+
+---
+
+## 3. 저장소 구조
+
+```
+RealCash/
+├── settings.gradle.kts
+├── build.gradle.kts
+├── gradle/libs.versions.toml
+├── gradle/wrapper/                 # 8.14.3
+├── shared/
+│   ├── domain/                     # 순수 Kotlin (KMP: jvm, iosArm64, iosSimulatorArm64; android 는 SDK 확보 후 추가)
+│   ├── data/                       # SQLDelight 이벤트 저장, 설정, 파서 규칙 로더      (T4)
+│   └── ui/                         # Compose Multiplatform 화면                        (T5)
+├── androidApp/                     # NotificationListenerService, 위젯, 진입점         (T3, SDK 필요)
+├── iosApp/
+│   └── NotificationIntentPoC/      # iOS 27 알림 트리거 → App Intent PoC (Swift)        (T2)
+└── docs/
+```
+
+패키지 루트: `com.jim.realcash` (HardPay 의 `com.jim.hardpay` 관례 유지).
+
+### 버전 정책
+- 버전은 **추측하지 말고** Maven Central / plugins.gradle.org 의 `maven-metadata.xml` 로 존재를 확인한 뒤 적는다.
+- Kotlin 2.2.x 최신 안정, kotlinx-coroutines 1.10.x, kotlinx-datetime 0.7.x(`kotlin.time.Instant` 사용), kotlinx-serialization 1.9.x, kotlin-test.
+- SQLDelight 2.4.x (T4), Compose Multiplatform 1.9.x (T5). Gradle 8.14.3 과 호환되는 조합인지 확인.
+
+---
+
+## 4. `shared/domain` 스펙 (T1)
+
+### 4.1 원칙
+- 플랫폼 의존성 0. `kotlin-stdlib`, `kotlinx-datetime`, `kotlinx-serialization`(이벤트 직렬화용) 만.
+- 모든 계산은 순수 함수. 시간·ID 는 주입(`Clock`, `IdGenerator`).
+- 돈은 `@JvmInline value class Won(val value: Int)` (원 단위 정수, 음수 금지는 생성 시 검증하지 않고 연산 결과에서 보장).
+
+### 4.2 타입
+
+```kotlin
+package com.jim.realcash.domain.model
+
+enum class Denomination(val won: Int, val kind: Kind) {
+    W50000(50_000, BILL), W10000(10_000, BILL), W5000(5_000, BILL), W1000(1_000, BILL),
+    C500(500, COIN), C100(100, COIN), C50(50, COIN), C10(10, COIN);
+    enum class Kind { BILL, COIN }
+    companion object { val descending: List<Denomination>; fun of(won: Int): Denomination? }
+}
+
+@JvmInline value class CashUnitId(val value: String)
+@JvmInline value class HandId(val value: String)
+@JvmInline value class PaymentId(val value: String)
+
+/** 지폐 또는 동전 1개. 개체이며 자동 재편성되지 않는다. */
+data class CashUnit(
+    val id: CashUnitId,
+    val denomination: Denomination,
+    val state: CashUnitState,          // IN_WALLET | IN_HAND | SPENT | EXCHANGED_AWAY
+    val acquiredAt: Instant,
+    val source: CashUnitSource,        // ALLOWANCE | CHANGE | EXCHANGE | ADJUSTMENT | REFUND
+)
+
+data class Hand(
+    val id: HandId,
+    val unitIds: List<CashUnitId>,
+    val createdAt: Instant,
+    val expiresAt: Instant,            // 기본 createdAt + 6h
+    val expectedAmount: Won?,
+    val memo: String?,
+)
+
+data class DetectedPayment(
+    val id: PaymentId,
+    val amount: Won,
+    val merchant: String?,
+    val sourceApp: String,             // 패키지명 또는 iOS 앱 식별자
+    val rawText: String,               // 재파싱용. 기기 밖으로 나가지 않음
+    val detectedAt: Instant,
+    val confidence: Float,             // 0..1
+    val isRefund: Boolean,
+)
+
+data class Settlement(
+    val paymentId: PaymentId,
+    val handId: HandId?,
+    val paidUnitIds: List<CashUnitId>,
+    val changeUnits: List<CashUnit>,   // 새로 생성된 거스름돈 (source = CHANGE)
+    val shortfall: Won,                // 지갑으로 못 덮은 금액. 보통 0
+    val flags: Set<SettlementFlag>,    // NOT_HAND_PICKED | ADDED_FROM_WALLET | INSUFFICIENT_FUNDS | MANUAL
+)
+
+enum class PullPolicy { LARGEST_FIRST, FEWEST_UNITS, EXACT_IF_POSSIBLE }
+
+data class BudgetPeriodPolicy(val cycle: Cycle, val startDay: Int /* 월=1..일=7 또는 1..28 */) {
+    enum class Cycle { WEEKLY, MONTHLY }
+}
+```
+
+### 4.3 이벤트와 리듀서
+
+```kotlin
+package com.jim.realcash.domain.ledger
+
+sealed interface LedgerEvent { val id: String; val at: Instant }
+data class AllowanceReceived(…, val units: List<CashUnit>, val periodStart: LocalDate)
+data class MovedToHand(…, val hand: Hand)
+data class HandReturned(…, val handId: HandId, val reason: ReturnReason /* EXPIRED | USER | SETTLED */)
+data class PaymentDetected(…, val payment: DetectedPayment)
+data class PaymentRejected(…, val paymentId: PaymentId)             // 사용자가 "아니에요"
+data class Settled(…, val settlement: Settlement)
+data class Refunded(…, val paymentId: PaymentId, val units: List<CashUnit>)  // 환불 → 거스름돈 규칙으로 지갑 복귀
+data class Exchanged(…, val fromUnitIds: List<CashUnitId>, val toUnits: List<CashUnit>)
+data class Adjusted(…, val removedUnitIds: List<CashUnitId>, val addedUnits: List<CashUnit>, val reason: String)
+
+data class WalletState(
+    val units: Map<CashUnitId, CashUnit>,
+    val activeHand: Hand?,
+    val pendingPayments: Map<PaymentId, DetectedPayment>,   // NEEDS_CONFIRM 상태
+    val settlements: List<Settlement>,
+package com.jim.realcash.ui.wallet
+
+import com.jim.realcash.data.AppSettings
+import com.jim.realcash.domain.calc.BudgetPeriods
+import com.jim.realcash.domain.ledger.PaymentDetected
+import com.jim.realcash.domain.ledger.WalletState
+import com.jim.realcash.domain.model.BudgetPeriodPolicy
+import com.jim.realcash.domain.model.Denomination
+import com.jim.realcash.domain.model.Won
+import com.jim.realcash.domain.model.total
+import com.jim.realcash.ui.AppEnvironment
+import com.jim.realcash.ui.Strings
+import com.jim.realcash.ui.format.formatted
+import com.jim.realcash.ui.launchCatching
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Instant
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.daysUntil
+import kotlinx.datetime.number
+import kotlinx.datetime.toLocalDateTime
+
+/** Count of one denomination, shared with the take-out and exchange screens. */
+data class DenominationCount(val denomination: Denomination, val count: Int)
+
+/** Only the information visible on the closed-wallet home. */
+data class WalletHomeUi(
+    val loaded: Boolean,
+    val periodLabel: String,
+    val periodRange: String,
+    val daysLeft: Int,
+    /** Domain balance: wallet plus hand. */
+    val balance: Won,
+    val handTotal: Won,
+    val billCount: Int,
+    val walletEmpty: Boolean,
+    val pendingCount: Int,
+) {
+    /** One side layer per five bills, capped at six; coins do not increase bill thickness. */
+    val sideLayers: Int get() = if (billCount == 0) 0 else ((billCount - 1) / 5 + 1).coerceAtMost(6)
+
+    companion object {
+        /** Uses the domain's period and balance without duplicating budget or money rules. */
+        fun from(state: WalletState, settings: AppSettings, now: Instant, timeZone: TimeZone, loaded: Boolean): WalletHomeUi {
+            val today = now.toLocalDateTime(timeZone).date
+            val policy = settings.budgetPeriodPolicy
+            val period = BudgetPeriods.currentPeriod(policy, today)
+            return WalletHomeUi(
+                loaded = loaded,
+                periodLabel = if (policy.cycle == BudgetPeriodPolicy.Cycle.MONTHLY) Strings.THIS_MONTH else Strings.THIS_WEEK,
+                periodRange = "${period.start.month.number}.${period.start.day} – ${period.endInclusive.month.number}.${period.endInclusive.day}",
+                daysLeft = today.daysUntil(period.endInclusive),
+                balance = state.balance,
+                handTotal = state.inHand.total(),
+                billCount = state.inWallet.count { it.denomination.kind == Denomination.Kind.BILL },
+                walletEmpty = state.inWallet.isEmpty(),
+                pendingCount = state.pendingPayments.size,
+            )
+        }
+    }
+}
+
+/** Observes the closed wallet and posts newly completed settlements as a single snackbar line. */
+class WalletHomeModel(scope: CoroutineScope, private val env: AppEnvironment) {
+    private val data = env.data
+    private val loaded = MutableStateFlow(false)
+    private val ticker = flow {
+        while (true) {
+            emit(env.clock.now())
+            delay(1.minutes)
+        }
+    }
+
+    val ui: StateFlow<WalletHomeUi> = combine(data.wallet.state, data.settings.settings, ticker, loaded) { state, settings, now, ready ->
+        WalletHomeUi.from(state, settings, now, env.timeZone, ready)
+    }.stateIn(
+        scope,
+        SharingStarted.Eagerly,
+        WalletHomeUi.from(data.wallet.state.value, data.settings.settings.value, env.clock.now(), env.timeZone, false),
+    )
+
+    init {
+        scope.launchCatching(env.messages) {
+            data.settings.load()
+            data.wallet.load()
+            loaded.value = true
+            // The loaded settlement is history. Only a new settlement produces a message.
+            data.wallet.state.map { it.settlements.lastOrNull() }.distinctUntilChanged().drop(1).collect { settlement ->
+                if (settlement != null) {
+                    val payment = data.wallet.history.value.filterIsInstance<PaymentDetected>()
+                        .lastOrNull { it.payment.id == settlement.paymentId }?.payment
+                    env.messages.show(Strings.settlementSnackbar(payment?.amount?.formatted()))
+                }
+            }
+        }
+    }
+}
+
+exec
+/bin/zsh -lc "python3 - <<'PY'
+import json,os
+m=json.load(open('assets/manifest.json'))
+print(json.dumps(m,ensure_ascii=False,indent=2))
+for root, dirs, files in os.walk('.'):
+ dirs[:] = [d for d in dirs if d not in ['.git','build','.gradle','node_modules','.kotlin']]
+ if 'AGENTS.md' in files: print('INSTRUCTIONS:',root+'/AGENTS.md')
+PY" in /Users/jeonbyeongseon/realcash-worker/scripts/log/ui-worktree
+ succeeded in 57ms:
+{
+  "$comment": "RealCash 에셋 목록. assets 키는 에셋 id(의뢰서 id와 같음, 예: bill.w10000.a), 값은 { path: 앱이 쓰는 정리본 경로, size: \"WxH\", status: \"draft\" | \"final\", source: \"gpt\", aiGenerated: true|false }. 검수 통과 시 Claude 세션이 draft로 추가하고, final은 사람 승인 뒤에만 붙인다. 원본은 assets/raw/, 출처 기록은 assets/LOG.md. assets/img/drawable/ 는 Compose Multiplatform 리소스 디렉터리(customDirectory)로도 쓰여 파일명이 리소스 id(bill_w10000 등)가 된다.",
+  "version": 1,
+  "assets": {
+    "bill.w10000.a": {
+      "path": "assets/img/drawable/bill_w10000_a.png",
+      "size": "1024x448",
+      "status": "draft",
+      "source": "gpt",
+      "aiGenerated": true,
+      "role": "미채택 — 오리지널 스타일 시안, bill.w10000.b 로 대체"
+    },
+    "bill.w10000.b": {
+      "path": "assets/img/drawable/bill_w10000.png",
+      "resource": "bill_w10000",
+      "size": "1024x470",
+      "status": "draft",
+      "source": "gpt",
+      "aiGenerated": true,
+      "role": "만원권 앞면 (실물풍, 초상→혼천의)"
+    },
+    "bill.w50000.b": {
+      "path": "assets/img/drawable/bill_w50000.png",
+      "resource": "bill_w50000",
+      "size": "1024x452",
+      "status": "draft",
+      "source": "gpt",
+      "aiGenerated": true,
+      "role": "오만원권 앞면 (실물풍, 초상→월매도·풍죽도)"
+    },
+    "bill.w5000.b": {
+      "path": "assets/img/drawable/bill_w5000.png",
+      "resource": "bill_w5000",
+      "size": "1024x490",
+      "status": "draft",
+      "source": "gpt",
+      "aiGenerated": true,
+      "role": "오천원권 앞면 (실물풍, 초상→초충도)"
+    },
+    "bill.w1000.b": {
+      "path": "assets/img/drawable/bill_w1000.png",
+      "resource": "bill_w1000",
+      "size": "1024x512",
+      "status": "draft",
+      "source": "gpt",
+      "aiGenerated": true,
+      "role": "천원권 앞면 (실물풍, 초상→계상정거도)"
+    },
+    "coin.c500.a": {
+      "path": "assets/img/drawable/coin_c500.png",
+      "resource": "coin_c500",
+      "size": "512x512",
+      "status": "draft",
+      "source": "gpt",
+      "aiGenerated": true,
+      "role": "500원 주화 앞면 (학, 실물풍)"
+    },
+    "coin.c100.a": {
+      "path": "assets/img/drawable/coin_c100.png",
+      "resource": "coin_c100",
+      "size": "512x512",
+      "status": "draft",
+      "source": "gpt",
+      "aiGenerated": true,
+      "role": "100원 주화 숫자 면 (앞면 초상 회피, 실물풍)"
+    },
+    "coin.c50.a": {
+      "path": "assets/img/drawable/coin_c50.png",
+      "resource": "coin_c50",
+      "size": "512x512",
+      "status": "draft",
+      "source": "gpt",
+      "aiGenerated": true,
+      "role": "50원 주화 앞면 (벼 이삭, 실물풍)"
+    },
+    "coin.c10.a": {
+      "path": "assets/img/drawable/coin_c10.png",
+      "resource": "coin_c10",
+      "size": "512x512",
+      "status": "draft",
+      "source": "gpt",
+      "aiGenerated": true,
+      "role": "10원 주화 앞면 (다보탑, 구릿빛 신형, 실물풍)"
+    },
+    "wallet.closed.a": {
+      "path": "assets/raw/wallet.closed.a-1.png",
+      "size": "1024x540",
+      "status": "draft",
+      "source": "gpt",
+      "aiGenerated": true,
+      "role": "미채택 — 갈색 장지갑, wallet.closed.b 로 대체 (정리본 제거, 원본만 보관)"
+    },
+    "wallet.open.a": {
+      "path": "assets/raw/wallet.open.a-1.png",
+      "size": "640x1024",
+      "status": "draft",
+      "source": "gpt",
+      "aiGenerated": true,
+      "role": "미채택 — 갈색 장지갑, wallet.open.b 로 대체 (정리본 제거, 원본만 보관)",
+      "pocket": {
+        "$comment": "이미지 전체 크기 대비 비율. 지폐를 꽂을 포켓 안쪽 영역과 입구(윗가장자리) 위치",
+        "topFraction": 0.405,
+        "leftFraction": 0.037,
+        "rightFraction": 0.963,
+        "bottomFraction": 0.98
+      }
+    },
+    "wallet.closed.b": {
+      "path": "assets/img/drawable/wallet_closed.png",
+      "resource": "wallet_closed",
+      "size": "1024x945",
+      "status": "draft",
+      "source": "gpt",
+      "aiGenerated": true,
+      "role": "홈: 닫힌 검은 크로스그레인 반지갑, 3/4 시점 제품 사진 구도. 두께 표현 없음"
+    },
+    "wallet.open.b": {
+      "path": "assets/img/drawable/wallet_open.png",
+      "resource": "wallet_open",
+      "size": "640x1518",
+      "status": "draft",
+      "source": "gpt",
+      "aiGenerated": true,
+      "role": "열린 지갑 화면 본체: 반지갑을 세로로 들고 지폐 칸을 벌려 위에서 본 1인칭, 손 없음",
+      "opening": {
+        "$comment": "이미지 전체 크기 대비 비율. 벌어진 칸 입구(아몬드/렌즈 모양)의 안감 영역. top/bottom 은 렌즈 양 끝, left/right 는 세로 중앙(가장 넓은 곳). usable 은 폭이 최대의 70% 이상인 직사각형(지폐 배치 기준). 그림의 좌우 벽은 윗부분에 카드 슬롯 선이 있다",
+        "topFraction": 0.02,
+        "leftFraction": 0.1,
+        "rightFraction": 0.92,
+        "bottomFraction": 0.98,
+        "usable": {
+          "topFraction": 0.15,
+          "leftFraction": 0.17,
+          "rightFraction": 0.83,
+          "bottomFraction": 0.85
+        }
+      }
+    },
+    "tray.a": {
+      "path": "assets/img/drawable/tray.png",
+      "resource": "tray",
+      "size": "1024x427",
+      "status": "draft",
+      "source": "gpt",
+      "aiGenerated": true,
+      "role": "열린 지갑 화면 상단 접시(캐셔 트레이)",
+      "inner": {
+        "$comment": "이미지 전체 크기 대비 비율. 지폐·동전을 올릴 수 있는 바닥 영역",
+        "leftFraction": 0.05,
+        "topFraction": 0.13,
+        "rightFraction": 0.95,
+        "bottomFraction": 0.9
+      }
+    }
+  }
+}
+
+exec
+/bin/zsh -lc 'cat shared/ui/src/jvmTest/kotlin/com/jim/realcash/ui/wallet/WalletNavigationTest.kt shared/ui/src/jvmTest/kotlin/com/jim/realcash/ui/wallet/WalletHomeModelTest.kt shared/ui/build.gradle.kts' in /Users/jeonbyeongseon/realcash-worker/scripts/log/ui-worktree
+ succeeded in 0ms:
+package com.jim.realcash.ui.wallet
+
+import androidx.compose.ui.ImageComposeScene
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.unit.Density
+import com.jim.realcash.data.RealCashData
+import com.jim.realcash.data.db.DriverFactory
+import com.jim.realcash.domain.model.Denomination.W10000
+import com.jim.realcash.domain.model.DetectedPayment
+import com.jim.realcash.domain.model.PaymentId
+import com.jim.realcash.domain.model.Won
+import com.jim.realcash.domain.util.SequentialIdGenerator
+import com.jim.realcash.ui.AppEnvironment
+import com.jim.realcash.ui.AppState
+import com.jim.realcash.ui.Haptics
+import com.jim.realcash.ui.RealCashRoot
+import com.jim.realcash.ui.Screen
+import com.jim.realcash.ui.theme.RealCashTheme
+import kotlin.coroutines.EmptyCoroutineContext
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
+import kotlin.time.Clock
+import kotlin.time.Instant
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.runBlocking
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+
+/** Pointer-driven checks of the menu, wallet and confirmation entry points, without new test dependencies. */
+class WalletNavigationTest {
+    private val now = Instant.parse("2026-11-04T09:00:00Z")
+    private val clock = object : Clock { override fun now(): Instant = now }
+    private val period = LocalDate(2026, 11, 1)
+
+    private fun withHome(empty: Boolean = false, pending: Boolean = false, test: (AppState, Harness) -> Unit) = runBlocking {
+        val driver = DriverFactory().createDriver()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        try {
+            val data = RealCashData(driver, clock, SequentialIdGenerator(), EmptyCoroutineContext)
+            if (!empty) data.wallet.receiveAllowance(mapOf(W10000 to 1), period)
+            if (pending) data.wallet.recordDetectedPayment(DetectedPayment(PaymentId("pending"), Won(4_800), "카페", "manual", "", now, 0.5f, false))
+            val app = AppState(AppEnvironment(data, Haptics.None, clock = clock, timeZone = TimeZone.of("Asia/Seoul")), scope)
+            app.start()
+            val scene = ImageComposeScene(780, 1688, Density(2f)) { RealCashTheme { RealCashRoot(app, showDebugShortcut = true) } }
+            try {
+                val harness = Harness(scene)
+                harness.settle()
+                test(app, harness)
+            } finally {
+                scene.close()
+            }
+        } finally {
+            scope.cancel()
+            driver.close()
+        }
+    }
+
+    @Test
+    fun allMenuDestinationsOpenAndPushedScreensHaveWorkingBackButtons() {
+        val destinations = listOf(Screen.ReceiveAllowance, Screen.Exchange, null, Screen.Ledger, Screen.Settings, Screen.NotificationSimulator)
+        destinations.forEachIndexed { index, destination ->
+            withHome { app, scene ->
+                scene.tap(354f, 32f)
+                scene.settle()
+                scene.tap(320f, 88f + 48f * index)
+                scene.settle()
+                if (destination == null) {
+                    assertTrue(app.manualSheetOpen, "direct entry opens the existing manual sheet")
+                    app.closeManualSheet()
+                } else {
+                    assertEquals(destination, app.current)
+                    scene.tap(28f, 32f)
+                    scene.settle()
+                    assertEquals(Screen.WalletHome, app.current)
+                }
+                assertFalse(app.canGoBack)
+            }
+        }
+    }
+
+    @Test
+    fun walletTapThenVisibleBackClosesAndCanReopen() = withHome { app, scene ->
+        repeat(2) {
+            scene.tap(195f, 440f)
+            scene.settle()
+            assertEquals(Screen.WalletOpen, app.current)
+            scene.tap(28f, 32f)
+            scene.settle()
+            assertEquals(Screen.WalletHome, app.current)
+        }
+    }
+
+    @Test
+    fun pendingBadgeOpensExistingConfirmationSheet() = withHome(pending = true) { app, scene ->
+        scene.tap(195f, 312f)
+        scene.settle()
+        assertTrue(app.confirmSheetOpen)
+    }
+
+    @Test
+    fun emptyWalletAllowanceButtonOpensReceiveAllowance() = withHome(empty = true) { app, scene ->
+        scene.tap(195f, 600f)
+        scene.settle()
+        assertEquals(Screen.ReceiveAllowance, app.current)
+    }
+
+    private class Harness(private val scene: ImageComposeScene) {
+        private var time = 0L
+        fun settle() {
+            repeat(12) {
+                scene.render(time)
+                time += 50_000_000L
+            }
+        }
+        fun tap(x: Float, y: Float) {
+            val point = Offset(x * 2, y * 2)
+            scene.sendPointerEvent(PointerEventType.Press, point)
+            scene.sendPointerEvent(PointerEventType.Release, point)
+        }
+    }
+}
+package com.jim.realcash.ui.wallet
+
+import com.jim.realcash.data.AppSettings
+import com.jim.realcash.data.RealCashData
+import com.jim.realcash.data.db.DriverFactory
+import com.jim.realcash.domain.ledger.WalletState
+import com.jim.realcash.domain.model.BudgetPeriodPolicy
+import com.jim.realcash.domain.model.Denomination.C500
+import com.jim.realcash.domain.model.Denomination.W10000
+import com.jim.realcash.domain.model.DetectedPayment
+import com.jim.realcash.domain.model.PaymentId
+import com.jim.realcash.domain.model.PullPolicy
+import com.jim.realcash.domain.model.Won
+import com.jim.realcash.domain.util.SequentialIdGenerator
+import com.jim.realcash.ui.AppEnvironment
+import com.jim.realcash.ui.AppState
+import com.jim.realcash.ui.Haptics
+import com.jim.realcash.ui.Screen
+import com.jim.realcash.ui.Strings
+import kotlin.coroutines.EmptyCoroutineContext
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
+import kotlin.time.Clock
+import kotlin.time.Instant
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class WalletHomeModelTest {
+    private val now = Instant.parse("2026-11-04T09:00:00Z")
+    private val clock = object : Clock { override fun now(): Instant = now }
+    private val zone = TimeZone.of("Asia/Seoul")
+    private val periodStart = LocalDate(2026, 11, 1)
+
+    @Test
+    fun monthlyDefaultAndSavedWeeklyPolicyUseDomainPeriods() {
+        val monthly = WalletHomeUi.from(WalletState.EMPTY, AppSettings.DEFAULT, now, zone, true)
+        assertEquals(Strings.THIS_MONTH, monthly.periodLabel)
+        assertEquals("11.1 – 11.30", monthly.periodRange)
+        assertEquals(26, monthly.daysLeft)
+        val weekly = WalletHomeUi.from(
+            WalletState.EMPTY,
+            AppSettings(budgetPeriodPolicy = BudgetPeriodPolicy(BudgetPeriodPolicy.Cycle.WEEKLY, 1)),
+            now, zone, true,
+        )
+        assertEquals(Strings.THIS_WEEK, weekly.periodLabel)
+        assertEquals("11.2 – 11.8", weekly.periodRange)
+        assertEquals(4, weekly.daysLeft)
+    }
+
+    @Test
+    fun thicknessBoundariesAndHandBalanceFollowRepositoryState() = runTest {
+        val driver = DriverFactory().createDriver()
+        try {
+            val data = RealCashData(driver, clock, SequentialIdGenerator(), EmptyCoroutineContext)
+            for ((bills, layers) in listOf(0 to 0, 1 to 1, 5 to 1, 6 to 2, 25 to 5, 26 to 6, 30 to 6)) {
+                val empty = WalletHomeUi.from(WalletState.EMPTY, AppSettings.DEFAULT, now, zone, true)
+                assertEquals(layers, empty.copy(billCount = bills).sideLayers)
+            }
+            data.wallet.receiveAllowance(mapOf(W10000 to 6, C500 to 2), periodStart)
+            data.wallet.moveToHand(data.wallet.state.value.inWallet.filter { it.denomination == W10000 }.take(2).map { it.id })
+            val home = WalletHomeUi.from(data.wallet.state.value, AppSettings.DEFAULT, now, zone, true)
+            assertEquals(Won(61_000), home.balance)
+            assertEquals(Won(20_000), home.handTotal)
+            assertEquals(4, home.billCount)
+            assertEquals(1, home.sideLayers)
+            assertFalse(home.walletEmpty)
+            data.wallet.returnHand(com.jim.realcash.domain.ledger.ReturnReason.USER)
+            assertEquals(2, WalletHomeUi.from(data.wallet.state.value, AppSettings.DEFAULT, now, zone, true).sideLayers)
+        } finally {
+            driver.close()
+        }
+    }
+
+    @Test
+    fun coinOnlyWalletIsNonemptyWithoutSideLayers() = runTest {
+        val driver = DriverFactory().createDriver()
+        try {
+            val data = RealCashData(driver, clock, SequentialIdGenerator(), EmptyCoroutineContext)
+            data.wallet.receiveAllowance(mapOf(C500 to 30), periodStart)
+            val home = WalletHomeUi.from(data.wallet.state.value, AppSettings.DEFAULT, now, zone, true)
+            assertFalse(home.walletEmpty)
+            assertEquals(0, home.sideLayers)
+        } finally {
+            driver.close()
+        }
+    }
+
+    @Test
+    fun walletTapHapticsAndPushedDestinationsReturnToHome() = runTest {
+        val driver = DriverFactory().createDriver()
+        try {
+            var taps = 0
+            val haptics = object : Haptics {
+                override fun tap() { taps++ }
+                override fun success() {}
+                override fun pickUp() {}
+            }
+            val data = RealCashData(driver, clock, SequentialIdGenerator(), EmptyCoroutineContext)
+            val app = AppState(AppEnvironment(data, haptics, clock = clock, timeZone = zone), backgroundScope)
+            app.openWallet()
+            app.openWallet()
+            assertEquals(1, taps)
+            assertEquals(Screen.WalletOpen, app.current)
+            assertTrue(app.back())
+            for (destination in listOf(Screen.Ledger, Screen.Settings, Screen.ReceiveAllowance, Screen.Exchange, Screen.NotificationSimulator)) {
+                app.navigate(destination)
+                assertEquals(destination, app.current)
+                assertTrue(app.back())
+                assertEquals(Screen.WalletHome, app.current)
+            }
+            assertFalse(app.back())
+        } finally {
+            driver.close()
+        }
+    }
+
+    @Test
+    fun newSettlementShowsOneCompactMessageWithoutReplayingHistory() = runTest {
+        val driver = DriverFactory().createDriver()
+        try {
+            val data = RealCashData(driver, clock, SequentialIdGenerator(), EmptyCoroutineContext)
+            data.wallet.receiveAllowance(mapOf(W10000 to 2), periodStart)
+            val env = AppEnvironment(data, Haptics.None, clock = clock, timeZone = zone)
+            val messages = mutableListOf<String>()
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { env.messages.messages.collect { messages += it } }
+            val model = WalletHomeModel(backgroundScope, env)
+            runCurrent()
+            val payment = DetectedPayment(PaymentId("settled"), Won(6_500), "카페", "manual", "", now, 1f, false)
+            data.wallet.recordDetectedPayment(payment)
+            runCurrent()
+            assertEquals(1, model.ui.value.pendingCount)
+            data.wallet.settle(payment.id, PullPolicy.LARGEST_FIRST)
+            runCurrent()
+            assertEquals(listOf("₩6,500 정산 완료"), messages)
+            assertEquals(0, model.ui.value.pendingCount)
+            WalletHomeModel(backgroundScope, env)
+            runCurrent()
+            assertEquals(1, messages.size)
+        } finally {
+            driver.close()
+        }
+    }
+}
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
+// Compose Multiplatform app shell and screens on top of :shared:data.
+// Targets: Android (hosted by :androidApp), desktop JVM (verification on this host: compile, unit tests,
+// offscreen screenshots) and iOS.
+plugins {
+    alias(libs.plugins.kotlin.multiplatform)
+    alias(libs.plugins.compose.multiplatform)
+    alias(libs.plugins.compose.compiler)
+    alias(libs.plugins.android.library)
+}
+
+kotlin {
+    androidTarget {
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_17)
+        }
+    }
+    jvm {
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_17)
+        }
+    }
+    iosArm64()
+    iosSimulatorArm64()
+
+    compilerOptions {
+        optIn.add("kotlin.time.ExperimentalTime")
+    }
+
+    sourceSets {
+        commonMain.dependencies {
+            api(project(":shared:data"))
+            implementation(libs.compose.runtime)
+            implementation(libs.compose.foundation)
+            implementation(libs.compose.ui)
+            implementation(libs.compose.material3)
+            // NOTE(T3): RealCashRoot maps the platform back event (Android back button / gesture) to the back stack.
+            implementation(libs.compose.ui.backhandler)
+            // Reviewed money artwork (assets/img/drawable) is exposed as Res.drawable.* on every platform.
+            implementation(compose.components.resources)
+        }
+        jvmMain.dependencies {
+            // Skiko runtime + desktop window APIs for the host OS.
+            implementation(compose.desktop.currentOs)
+            // Dispatchers.Main (AWT event thread) for the desktop window and lifecycle code.
+            implementation(libs.kotlinx.coroutines.swing)
+        }
+        jvmTest.dependencies {
+            implementation(libs.kotlin.test)
+            implementation(libs.kotlinx.coroutines.test)
+        }
+    }
+}
+
+// Android library side of the KMP module (classic com.android.library + androidTarget()).
+android {
+    namespace = "com.jim.realcash.ui"
+    compileSdk = libs.versions.android.compileSdk.get().toInt()
+    buildToolsVersion = libs.versions.android.buildTools.get()
+    defaultConfig {
+        minSdk = libs.versions.android.minSdk.get().toInt()
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+}
+
+// The reviewed assets live in assets/img (manifest, LOG.md); they are served as Compose resources from there
+// instead of being copied into src/commonMain/composeResources, so the repo keeps one copy per image.
+compose.resources {
+    publicResClass = false
+    packageOfResClass = "com.jim.realcash.ui.resources"
+    customDirectory(
+        sourceSetName = "commonMain",
+        directoryProvider = provider { layout.projectDirectory.dir("../../assets/img") },
+    )
+}
+
+compose.desktop {
+    application {
+        mainClass = "com.jim.realcash.ui.DesktopMainKt"
+    }
+}
+
+// Offscreen screenshot rendering needs no display; keep AWT headless and let Skiko fall back to software.
+tasks.withType<Test>().configureEach {
+    systemProperty("java.awt.headless", "true")
+    systemProperty("skiko.renderApi", "SOFTWARE")
+    systemProperty("realcash.screenshotDir", layout.buildDirectory.dir("screenshots").get().asFile.absolutePath)
+}
+
+exec
+/bin/zsh -lc "sed -n '1,280p' shared/ui/src/jvmTest/kotlin/com/jim/realcash/ui/screenshot/ScreenshotTest.kt" in /Users/jeonbyeongseon/realcash-worker/scripts/log/ui-worktree
+ succeeded in 0ms:
+package com.jim.realcash.ui.screenshot
+
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.snapshots.Snapshot
+import androidx.compose.ui.ImageComposeScene
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.unit.Density
+import com.jim.realcash.data.RealCashData
+import com.jim.realcash.data.db.DriverFactory
+import com.jim.realcash.domain.model.Denomination.C100
+import com.jim.realcash.domain.model.Denomination.C500
+import com.jim.realcash.domain.model.Denomination.C50
+import com.jim.realcash.domain.model.Denomination.C10
+import com.jim.realcash.domain.model.Denomination.W1000
+import com.jim.realcash.domain.model.Denomination.W10000
+import com.jim.realcash.domain.model.Denomination.W5000
+import com.jim.realcash.domain.model.Denomination.W50000
+import com.jim.realcash.domain.model.Denomination
+import com.jim.realcash.domain.model.DetectedPayment
+import com.jim.realcash.domain.model.PaymentId
+import com.jim.realcash.domain.model.Won
+import com.jim.realcash.domain.parser.DefaultRules
+import com.jim.realcash.domain.parser.RawNotification
+import com.jim.realcash.domain.util.SequentialIdGenerator
+import com.jim.realcash.ui.AppEnvironment
+import com.jim.realcash.ui.AppState
+import com.jim.realcash.ui.Haptics
+import com.jim.realcash.ui.RealCashRoot
+import com.jim.realcash.ui.theme.RealCashTheme
+import com.jim.realcash.ui.Screen
+import com.jim.realcash.ui.UiMessages
+import com.jim.realcash.ui.takeout.TakeOutFeedback
+import java.io.File
+import kotlin.coroutines.EmptyCoroutineContext
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertIs
+import kotlin.test.assertTrue
+import kotlin.time.Clock
+import kotlin.time.Duration.Companion.hours
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Instant
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import org.jetbrains.skia.EncodedImageFormat
+
+/**
+ * Renders every screen offscreen with [ImageComposeScene] at 390×844 logical px (density 2) over a real
+ * [RealCashData] on an in-memory database, and writes PNGs to `shared/ui/build/screenshots/`.
+ *
+ * The clock is frozen at 2026-11-04 18:00 KST (a Wednesday; monthly period 11.1 – 11.30).
+ */
+class ScreenshotTest {
+    private val now = Instant.parse("2026-11-04T09:00:00Z")
+    private val seoul = TimeZone.of("Asia/Seoul")
+    private val periodStart = LocalDate(2026, 11, 1)
+    private val fixedClock = object : Clock {
+        override fun now(): Instant = now
+    }
+
+    private val outDir = File(System.getProperty("realcash.screenshotDir") ?: "build/screenshots").apply { mkdirs() }
+
+    /** Fresh data layer; SQLite calls run inline (no dispatcher hop), so every mutation completes synchronously. */
+    private fun newData(clock: Clock = fixedClock): RealCashData =
+        RealCashData(DriverFactory().createDriver(), clock, SequentialIdGenerator("id-"), ioContext = EmptyCoroutineContext)
+
+    /** A data-layer clock that can be moved, so ledger events land on different days (the UI clock stays fixed). */
+    private class MovableClock(var now: Instant) : Clock {
+        override fun now(): Instant = now
+    }
+
+    /** An [AppState] whose scope runs inline, with settings and ledger loaded. */
+    private fun newAppState(data: RealCashData): AppState {
+        val env = AppEnvironment(data, Haptics.None, UiMessages(), fixedClock, seoul)
+        return AppState(env, CoroutineScope(Dispatchers.Unconfined)).also { it.start() }
+    }
+
+    private suspend fun RealCashData.seedAllowance() {
+        wallet.receiveAllowance(mapOf(W50000 to 1, W10000 to 3, W5000 to 2, W1000 to 5, C500 to 3, C100 to 4), periodStart)
+    }
+
+    private suspend fun RealCashData.seedHand(vararg denominations: Denomination, expected: Won? = null) {
+        val inWallet = wallet.state.value.inWallet.toMutableList()
+        val ids = denominations.map { d -> inWallet.first { it.denomination == d }.also(inWallet::remove).id }
+        wallet.moveToHand(ids, expectedAmount = expected, ttl = 6.hours)
+    }
+
+    private suspend fun RealCashData.seedPending() {
+        wallet.recordDetectedPayment(
+            DetectedPayment(PaymentId("pay-1"), Won(4_800), "이디야커피 역삼점", DefaultRules.TOSS, "4,800원 결제 | 이디야커피 역삼점", now - 2.hours, 0.62f, false),
+        )
+        wallet.recordDetectedPayment(
+            DetectedPayment(PaymentId("pay-2"), Won(12_300), null, DefaultRules.SAMSUNG_WALLET, "12,300원 결제", now - 20.minutes, 0.55f, false),
+        )
+    }
+
+    @Test
+    fun a_walletHomeEmpty() = runBlocking {
+        val app = newAppState(newData())
+        render("a-wallet-empty") { RealCashRoot(app, showDebugShortcut = true) }
+    }
+
+    @Test
+    fun b_walletHomeWithAllowance() = runBlocking {
+        val data = newData().apply { seedAllowance() }
+        val app = newAppState(data)
+        render("b-wallet-allowance") { RealCashRoot(app, showDebugShortcut = true) }
+    }
+
+    @Test
+    fun c_walletHomeWithHandAndPending() = runBlocking {
+        val data = newData().apply {
+            seedAllowance()
+            seedHand(W10000, W5000, expected = Won(13_000))
+            seedPending()
+        }
+        val app = newAppState(data)
+        render("c-wallet-hand-pending") { RealCashRoot(app, showDebugShortcut = true) }
+    }
+
+    @Test
+    fun d_receiveAllowance() = runBlocking {
+        val app = newAppState(newData())
+        app.navigate(Screen.ReceiveAllowance)
+        app.receiveAllowance.onAmountChange("100000")
+        render("d-receive-allowance") { RealCashRoot(app) }
+    }
+
+    @Test
+    fun e_confirmPaymentsSheet() = runBlocking {
+        val data = newData().apply {
+            seedAllowance()
+            seedHand(W10000, W5000)
+            seedPending()
+        }
+        val app = newAppState(data)
+        app.openConfirmSheet()
+        render("e-confirm-payments") { RealCashRoot(app) }
+    }
+
+    @Test
+    fun f_simulatorAfterAutoSettle() = runBlocking {
+        val data = newData().apply {
+            seedAllowance()
+            seedHand(W5000)
+        }
+        val app = newAppState(data)
+        app.navigate(Screen.NotificationSimulator)
+        app.simulator.send() // Samsung preset: 스타벅스 강남점 6,500원 -> hand 5,000 + wallet pull, change back.
+        assertTrue(app.simulator.result.value != null, "the simulator should have a result")
+        render("f-simulator-autosettled") { RealCashRoot(app) }
+    }
+
+    @Test
+    fun g_walletHomeDark() = runBlocking {
+        val data = newData().apply {
+            seedAllowance()
+            seedHand(W10000, W5000, expected = Won(13_000))
+        }
+        val app = newAppState(data)
+        render("g-wallet-dark", dark = true) { RealCashRoot(app, showDebugShortcut = true) }
+    }
+
+    @Test
+    fun h_takeOutOverExpected() = runBlocking {
+        val data = newData().apply { seedAllowance() }
+        val app = newAppState(data)
+        app.navigate(Screen.TakeOut(refill = false))
+        app.takeOut.onExpectedChange("13000")
+        app.takeOut.tapAdd(W10000)
+        app.takeOut.tapAdd(W5000)
+        val feedback = assertIs<TakeOutFeedback.Over>(app.takeOut.draft.value.feedback)
+        assertEquals(Won(2_000), feedback.changeTotal)
+        render("h-takeout-over") { RealCashRoot(app) }
+    }
+
+    @Test
+    fun i_takeOutMidDrag() = runBlocking {
+        val data = newData().apply { seedAllowance() }
+        val app = newAppState(data)
+        app.navigate(Screen.TakeOut(refill = false))
+        val model = app.takeOut
+        model.onExpectedChange("13000")
+        model.tapAdd(W10000)
+        render("i-takeout-dragging", midway = {
+            // Drive the hoisted drag state directly (no pointer events): a 5,000 bill held over the hand zone.
+            val zone = checkNotNull(model.drag.zoneBounds) { "the hand zone reports its bounds after layout" }
+            model.drag.start(W5000, zone.center + Offset(zone.width * 0.18f, 0f))
+            Snapshot.sendApplyNotifications()
+        }) { RealCashRoot(app) }
+        assertTrue(model.drag.isOverZone, "the ghost is over the hand zone")
+    }
+
+    @Test
+    fun j_exchangeReceiveStep() = runBlocking {
+        val data = newData().apply { seedAllowance() }
+        val app = newAppState(data)
+        app.navigate(Screen.Exchange)
+        app.exchange.addToTray(W50000)
+        app.exchange.toReceive()
+        assertTrue(app.exchange.draft.value.isValid)
+        render("j-exchange-receive") { RealCashRoot(app) }
+    }
+
+    @Test
+    fun k_ledger() = runBlocking {
+        val clock = MovableClock(Instant.parse("2026-11-02T00:30:00Z")) // Mon 09:30 KST
+        val data = newData(clock).apply {
+            seedAllowance()
+            clock.now = Instant.parse("2026-11-03T03:10:00Z") // Tue 12:10: take 10,000 out, pay 6,500 with it
+            seedHand(W10000, expected = Won(7_000))
+            intake.onNotification(RawNotification(DefaultRules.SAMSUNG_WALLET, "결제 완료", "스타벅스 강남점에서 6,500원 결제", null, clock.now))
+            clock.now = Instant.parse("2026-11-04T01:20:00Z") // Wed 10:20: exchange the 50,000 bill
+            val fifty = wallet.state.value.inWallet.first { it.denomination == W50000 }
+            wallet.exchange(listOf(fifty.id), mapOf(W10000 to 5))
+            clock.now = Instant.parse("2026-11-04T08:40:00Z") // Wed 17:40: paid without taking cash out
+            intake.onNotification(RawNotification(DefaultRules.TOSS, "토스페이", "12,000원 결제 | 김밥천국 역삼점", null, clock.now))
+        }
+        val app = newAppState(data)
+        app.navigate(Screen.Ledger)
+        val summary = app.ledger.ui.value.summary
+        assertEquals(2, summary.paymentCount)
+        assertEquals(1, summary.directCount)
+        render("k-ledger") { RealCashRoot(app) }
+    }
+
+    @Test
+    fun l_settings() = runBlocking {
+        val app = newAppState(newData())
+        app.navigate(Screen.Settings)
+        // Taller than a phone so the whole tab, including 감지 앱 and the 디버그 section, is visible in one image.
+        render("l-settings", height = 1420) { RealCashRoot(app) }
+    }
+
+    @Test
+    fun m_walletHomeAllBills() = runBlocking {
+        val data = newData().apply {
+            wallet.receiveAllowance(mapOf(W50000 to 4, W10000 to 3, W5000 to 2, W1000 to 1, C500 to 3, C100 to 4, C50 to 2, C10 to 5), periodStart)
+        }
+        val app = newAppState(data)
+        assertEquals(Denomination.entries.toSet(), data.wallet.state.value.inWallet.map { it.denomination }.toSet())
+        render("m-wallet-all-bills") { RealCashRoot(app) }
+    }
+
+    @Test
+    fun n_confirmedChangeChips() = runBlocking {
+        val data = newData().apply {
+            seedAllowance()
+            seedHand(W10000, W5000)
+            seedPending()
+        }
+        val app = newAppState(data)
+        app.openConfirmSheet()
+        app.confirmPayments.confirm(PaymentId("pay-1"))
+        app.confirmPayments.reject(PaymentId("pay-2"))
+        assertEquals(mapOf(W10000 to 1, C100 to 2), app.confirmPayments.ui.value.confirmed.single().changeCounts)
+        render("n-confirmed-change") { RealCashRoot(app) }
+    }
+
+    @Test
+    fun o_walletHomeAllCoins() = runBlocking {
+        val data = newData().apply {
+            wallet.receiveAllowance(mapOf(C500 to 3, C100 to 4, C50 to 2, C10 to 5), periodStart)
+        }
+        val app = newAppState(data)
+        assertEquals(
+            mapOf(C500 to 3, C100 to 4, C50 to 2, C10 to 5),
+            data.wallet.state.value.inWallet.groupingBy { it.denomination }.eachCount(),
+        )
+        render("o-wallet-all-coins") { RealCashRoot(app) }
+    }
+
+    @Test
+    fun p_takeOutMidCoinDrag() = runBlocking {
+        val data = newData().apply { seedAllowance() }
+        val app = newAppState(data)
+
+exec
+/bin/zsh -lc "find shared/ui/src/commonMain/kotlin shared/domain/src/commonMain shared/data/src/commonMain -type f | head -100; grep -R -nE 'sideLayers|billCount|ClosedWallet|WalletScene' shared/ui/src; grep -n -A55 '"'^## 8'"' docs/04*; /usr/libexec/java_home -V" in /Users/jeonbyeongseon/realcash-worker/scripts/log/ui-worktree
+ succeeded in 0ms:
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/settings/SettingsUi.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/settings/SettingsScreens.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/settings/SettingsModel.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/allowance/ReceiveAllowanceScreen.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/allowance/ReceiveAllowanceModel.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/allowance/AllowanceDraft.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/exchange/ExchangeDraft.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/exchange/ExchangeModel.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/exchange/ExchangeScreen.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/ledger/LedgerRows.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/ledger/LedgerScreen.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/ledger/LedgerModel.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/Strings.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/confirm/ConfirmPaymentsModel.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/confirm/ConfirmPaymentsSheet.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/RealCashApp.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/components/ClosedWallet.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/components/Common.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/components/DenominationStepper.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/components/SegmentedChoice.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/components/Icons.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/manual/ManualPaymentSheet.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/manual/ManualPaymentModel.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/manual/ManualPaymentDraft.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/theme/Theme.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/simulator/NotificationSimulatorScreen.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/simulator/IntakeResultSummary.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/simulator/NotificationSimulatorModel.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/money/MoneyFaces.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/money/MoneyArt.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/walletopen/WalletOpenScreen.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/walletopen/CoinScatter.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/walletopen/WalletMotion.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/walletopen/WalletOpenLayout.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/walletopen/WalletOpenModel.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/walletopen/WalletPhysics.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/wallet/WalletHomeScreen.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/wallet/WalletHomeModel.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/format/Formatting.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/Haptics.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/takeout/TakeOutModel.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/takeout/TakeOutDraft.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/takeout/TakeOutScreen.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/takeout/DragDropState.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/AppState.kt
+shared/domain/src/commonMain/kotlin/com/jim/realcash/domain/ledger/WalletReducer.kt
+shared/domain/src/commonMain/kotlin/com/jim/realcash/domain/ledger/LedgerEvent.kt
+shared/domain/src/commonMain/kotlin/com/jim/realcash/domain/ledger/WalletState.kt
+shared/domain/src/commonMain/kotlin/com/jim/realcash/domain/util/IdGenerator.kt
+shared/domain/src/commonMain/kotlin/com/jim/realcash/domain/parser/DefaultRules.kt
+shared/domain/src/commonMain/kotlin/com/jim/realcash/domain/parser/NotificationParser.kt
+shared/domain/src/commonMain/kotlin/com/jim/realcash/domain/calc/Settler.kt
+shared/domain/src/commonMain/kotlin/com/jim/realcash/domain/calc/SplitSuggester.kt
+shared/domain/src/commonMain/kotlin/com/jim/realcash/domain/calc/HandExpiry.kt
+shared/domain/src/commonMain/kotlin/com/jim/realcash/domain/calc/ChangeCalculator.kt
+shared/domain/src/commonMain/kotlin/com/jim/realcash/domain/calc/PaymentDeduplicator.kt
+shared/domain/src/commonMain/kotlin/com/jim/realcash/domain/calc/PullSelector.kt
+shared/domain/src/commonMain/kotlin/com/jim/realcash/domain/calc/BudgetPeriods.kt
+shared/domain/src/commonMain/kotlin/com/jim/realcash/domain/model/Payment.kt
+shared/domain/src/commonMain/kotlin/com/jim/realcash/domain/model/Ids.kt
+shared/domain/src/commonMain/kotlin/com/jim/realcash/domain/model/Hand.kt
+shared/domain/src/commonMain/kotlin/com/jim/realcash/domain/model/BudgetPeriodPolicy.kt
+shared/domain/src/commonMain/kotlin/com/jim/realcash/domain/model/CashUnit.kt
+shared/domain/src/commonMain/kotlin/com/jim/realcash/domain/model/Won.kt
+shared/domain/src/commonMain/kotlin/com/jim/realcash/domain/model/Denomination.kt
+shared/data/src/commonMain/kotlin/com/jim/realcash/data/NotificationKey.kt
+shared/data/src/commonMain/kotlin/com/jim/realcash/data/RealCashData.kt
+shared/data/src/commonMain/kotlin/com/jim/realcash/data/PaymentLog.kt
+shared/data/src/commonMain/kotlin/com/jim/realcash/data/LedgerStore.kt
+shared/data/src/commonMain/kotlin/com/jim/realcash/data/SettingsStore.kt
+shared/data/src/commonMain/kotlin/com/jim/realcash/data/PaymentIntake.kt
+shared/data/src/commonMain/kotlin/com/jim/realcash/data/SettingsRepository.kt
+shared/data/src/commonMain/kotlin/com/jim/realcash/data/db/DriverFactory.kt
+shared/data/src/commonMain/kotlin/com/jim/realcash/data/WalletRepository.kt
+shared/data/src/commonMain/kotlin/com/jim/realcash/data/ParserRulesRepository.kt
+shared/data/src/commonMain/kotlin/com/jim/realcash/data/DataJson.kt
+shared/data/src/commonMain/sqldelight/com/jim/realcash/data/db/RealCash.sq
+shared/ui/src/jvmTest/kotlin/com/jim/realcash/ui/screenshot/ScreenshotTest.kt:328:        assertEquals(30, app.walletHome.ui.value.billCount)
+shared/ui/src/jvmTest/kotlin/com/jim/realcash/ui/screenshot/ScreenshotTest.kt:329:        assertEquals(6, app.walletHome.ui.value.sideLayers)
+shared/ui/src/jvmTest/kotlin/com/jim/realcash/ui/wallet/WalletHomeModelTest.kt:65:                assertEquals(layers, empty.copy(billCount = bills).sideLayers)
+shared/ui/src/jvmTest/kotlin/com/jim/realcash/ui/wallet/WalletHomeModelTest.kt:72:            assertEquals(4, home.billCount)
+shared/ui/src/jvmTest/kotlin/com/jim/realcash/ui/wallet/WalletHomeModelTest.kt:73:            assertEquals(1, home.sideLayers)
+shared/ui/src/jvmTest/kotlin/com/jim/realcash/ui/wallet/WalletHomeModelTest.kt:76:            assertEquals(2, WalletHomeUi.from(data.wallet.state.value, AppSettings.DEFAULT, now, zone, true).sideLayers)
+shared/ui/src/jvmTest/kotlin/com/jim/realcash/ui/wallet/WalletHomeModelTest.kt:90:            assertEquals(0, home.sideLayers)
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/RealCashApp.kt:129:                    Screen.WalletHome, Screen.WalletOpen -> WalletScene(appState, showDebugShortcut)
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/RealCashApp.kt:166:private fun WalletScene(appState: AppState, showDebugShortcut: Boolean) {
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/components/ClosedWallet.kt:25:fun ClosedWallet(sideLayers: Int, opening: Float, enabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/components/ClosedWallet.kt:35:        for (layer in sideLayers downTo 1) {
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/wallet/WalletHomeScreen.kt:29:import com.jim.realcash.ui.components.ClosedWallet
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/wallet/WalletHomeScreen.kt:116:            ClosedWallet(ui.sideLayers, opening, ui.loaded && enabled, onOpenWallet, Modifier.fillMaxWidth(0.86f))
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/wallet/WalletHomeModel.kt:45:    val billCount: Int,
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/wallet/WalletHomeModel.kt:50:    val sideLayers: Int get() = if (billCount == 0) 0 else ((billCount - 1) / 5 + 1).coerceAtMost(6)
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/wallet/WalletHomeModel.kt:65:                billCount = state.inWallet.count { it.denomination.kind == Denomination.Kind.BILL },
+75:## 8. 결정 (2026-11-05 사용자) — 지갑 시점·재질 변경
+76-
+77-1. 지갑은 **검은 크로스그레인(사피아노) 가죽 반지갑**. 장지갑 아님. 홈의 닫힌 지갑은 제품 사진처럼 3/4 시점, 전체가 잘리지 않게.
+78-2. **지폐 수에 따른 두께 표현은 없앤다.** 지갑 위치·크기는 항상 같다.
+79-3. 열린 화면은 **반지갑을 펼쳐 세로로 들고 지폐 칸을 양손으로 벌려 위에서 들여다보는 1인칭 시점**. 손은 그리지 않고 지갑만. 세로로 들어야 지폐 뭉치가 한눈에 들어온다(스케치 `assets/reference/wallet-open-sketch.jpg`: 위 네모 = 접시, 아래 흰 윤곽 = 벌어진 칸, 색선 = 지폐).
+80-4. 칸 안의 지폐는 **비스듬히 내려다봐서 앞면 윗부분(약 35%)이 보이는** 쪽(b). 집으면 앞면 전체, 접시에서는 눕는다.
+81-5. 동전은 지갑 바깥 **바닥**에 널브러진다. 처음엔 오른쪽 여백에만, 집어서 왼쪽 바닥에도 놓을 수 있다.
+82-6. 자산: `wallet.closed.b`, `wallet.open.b` 로 교체(의뢰 12·13). 지폐·동전·접시 그림은 그대로. 검수 때 `wallet.open.b.opening` (칸 입구 비율 좌표)을 manifest 에 기록한다. UI 의뢰: 10 ui.home-wallet-v3, 11 ui.wallet-open-v3.
+83-7. 미결: 집었을 때 지폐 크기(실물 길이 vs 접시 높이에 맞춰 축소)는 기기 테스트 뒤 결정.
+Matching Java Virtual Machines (5):
+    25 (arm64) "Oracle Corporation" - "OpenJDK 25" /Users/jeonbyeongseon/Library/Java/JavaVirtualMachines/openjdk-25/Contents/Home
+    24.0.2 (arm64) "Amazon.com Inc." - "Amazon Corretto 24" /Users/jeonbyeongseon/Library/Java/JavaVirtualMachines/corretto-24.0.2/Contents/Home
+    21.0.13 (arm64) "Eclipse Adoptium" - "OpenJDK 21.0.13" /Users/jeonbyeongseon/Library/Java/JavaVirtualMachines/jdk-21.0.13+9/Contents/Home
+    21.0.11 (arm64) "Amazon.com Inc." - "Amazon Corretto 21" /Users/jeonbyeongseon/Library/Java/JavaVirtualMachines/corretto-21.jdk/Contents/Home
+    17.0.14 (arm64) "JetBrains s.r.o." - "JBR-17.0.14+1-1367.22-nomod 17.0.14" /Users/jeonbyeongseon/Library/Java/JavaVirtualMachines/jbr-17.0.14/Contents/Home
+/Users/jeonbyeongseon/Library/Java/JavaVirtualMachines/openjdk-25/Contents/Home
+
+codex
+새 그림의 비율은 `1024×945`입니다. 지갑 폭을 화면의 70%로 맞추고, 배지 영역에 고정 높이를 확보해 배지가 줄바꿈되어도 지갑이 밀리지 않게 하겠습니다. 지폐 장수와 두께 계산도 홈 모델에서 제거하겠습니다.
+exec
+/bin/zsh -lc 'cat shared/ui/src/jvmTest/kotlin/com/jim/realcash/ui/walletopen/WalletOpenSwayTest.kt; ls shared/ui/screenshots; ls /usr/local/bin/rg /opt/homebrew/bin/rg' in /Users/jeonbyeongseon/realcash-worker/scripts/log/ui-worktree
+ exited 1 in 0ms:
+package com.jim.realcash.ui.walletopen
+
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.ImageComposeScene
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.unit.Density
+import com.jim.realcash.domain.model.*
+import com.jim.realcash.domain.model.Denomination.*
+import com.jim.realcash.ui.Haptics
+import com.jim.realcash.ui.money.LocalMoneyArt
+import com.jim.realcash.ui.money.MoneyArt
+import com.jim.realcash.ui.theme.RealCashTheme
+import kotlin.test.*
+import kotlin.time.Instant
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
+import org.jetbrains.skia.EncodedImageFormat
+
+class WalletOpenSwayTest {
+    @Test fun swipingThirtyBillsTicksWithoutRecomposingCashOrPickingAnything() = runBlocking {
+        val counts = mapOf(W10000 to 30)
+        val units = counts.flatMap { (d, count) -> List(count) { i ->
+            CashUnit(CashUnitId("$d-$i"), d, CashUnitState.IN_WALLET,
+                Instant.parse("2026-11-04T09:00:00Z"), CashUnitSource.ALLOWANCE)
+        } }
+        var compositions = 0
+        var ticks = 0
+        var pickups = 0
+        val physics = WalletOpenPhysics()
+        val art = object : MoneyArt {
+            @Composable override fun painter(denomination: Denomination): Painter? {
+                SideEffect { compositions++ }
+                return null
+            }
+        }
+        val haptics = object : Haptics {
+            override fun tap() { ticks++ }
+            override fun pickUp() { pickups++ }
+            override fun success() = Unit
+        }
+        val scene = ImageComposeScene(780, 1688, Density(2f), coroutineContext = coroutineContext) {
+            RealCashTheme { CompositionLocalProvider(LocalMoneyArt provides art) {
+                WalletOpenContent(WalletOpenUi(units, emptyList(), false), 1, false,
+                    { fail("a swipe must not change ownership") }, {}, {}, physics = physics, haptics = haptics)
+            } }
+        }
+        var time = 0L
+        fun frame() { scene.render(time); time += 16_000_000L }
+        try {
+            repeat(10) { frame() }
+            val baseline = compositions
+            val before = checkNotNull(scene.render(time).encodeToData(EncodedImageFormat.PNG)).bytes
+            val layout = WalletOpenLayout.calculate(390f, 844f)
+            val groups = pocketBillGroups(counts, layout.pocket)
+            val left = groups.first().left + 1f
+            val right = groups.last().right - 1f
+            val y = layout.pocket.top - 4f
+            scene.sendPointerEvent(PointerEventType.Press, Offset(left, y) * 2f, timeMillis = 1_000L)
+            for (step in 1..20) {
+                delay(16)
+                scene.sendPointerEvent(PointerEventType.Move, Offset(left + (right - left) * step / 20f, y) * 2f, timeMillis = 1_000L + step * 16L)
+                frame()
+            }
+            val during = checkNotNull(scene.render(time).encodeToData(EncodedImageFormat.PNG)).bytes
+            assertFalse(before.contentEquals(during), "the springs must visibly sway the paper")
+            assertEquals(0, pickups)
+            assertNull(physics.picked)
+            assertEquals(groups.sumOf { it.visibleCount }, ticks, "one selection tick per visible bill crossed")
+            assertEquals(baseline, compositions, "spring frames must not recompose the cash artwork")
+            scene.sendPointerEvent(PointerEventType.Release, Offset(right, y) * 2f, timeMillis = 1_336L)
+            repeat(90) { frame() }
+            assertEquals(baseline, compositions, "return-to-rest springs also use deferred layer reads")
+        } finally { scene.close() }
+    }
+}
+ls: shared/ui/screenshots: No such file or directory
+ls: /opt/homebrew/bin/rg: No such file or directory
+ls: /usr/local/bin/rg: No such file or directory
+
+exec
+/bin/zsh -lc "sed -n '290,490p' shared/ui/src/jvmTest/kotlin/com/jim/realcash/ui/screenshot/ScreenshotTest.kt; sed -n '90,235p' shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/RealCashApp.kt; cat shared/domain/src/commonMain/kotlin/com/jim/realcash/domain/ledger/WalletState.kt; sed -n '1,165p' shared/data/src/commonMain/kotlin/com/jim/realcash/data/WalletRepository.kt" in /Users/jeonbyeongseon/realcash-worker/scripts/log/ui-worktree
+ succeeded in 0ms:
+
+    @Test
+    fun q_walletHomeAllCoinsDark() = runBlocking {
+        val data = newData().apply {
+            wallet.receiveAllowance(mapOf(C500 to 3, C100 to 4, C50 to 2, C10 to 5), periodStart)
+        }
+        val app = newAppState(data)
+        render("q-wallet-all-coins-dark", dark = true) { RealCashRoot(app) }
+    }
+
+    @Test
+    fun p_manualPaymentSheet() = runBlocking {
+        val data = newData().apply { seedAllowance(); seedHand(W10000) }
+        val app = newAppState(data)
+        app.openManualSheet()
+        app.manualPayment.onAmountChange("6500")
+        render("p-manual-payment-sheet") { RealCashRoot(app) }
+    }
+
+    @Test
+    fun q_manualPaymentResult() = runBlocking {
+        val data = newData().apply { seedAllowance(); seedHand(W10000) }
+        val app = newAppState(data)
+        app.openManualSheet()
+        app.manualPayment.onAmountChange("6500")
+        app.manualPayment.onMerchantChange("동네 카페")
+        app.manualPayment.submit()
+        val result = checkNotNull(app.manualPayment.draft.value.result)
+        assertEquals(Won(10_000), result.paid)
+        assertEquals(Won(3_500), result.change)
+        assertTrue(com.jim.realcash.domain.model.SettlementFlag.MANUAL in result.settlement.flags)
+        render("q-manual-payment-result") { RealCashRoot(app) }
+    }
+
+    @Test
+    fun r_walletHomeThirtyBills() = runBlocking {
+        val data = newData().apply { wallet.receiveAllowance(mapOf(W10000 to 30), periodStart) }
+        val app = newAppState(data)
+        assertEquals(30, app.walletHome.ui.value.billCount)
+        assertEquals(6, app.walletHome.ui.value.sideLayers)
+        render("r-wallet-thick") { RealCashRoot(app) }
+    }
+
+    @Test
+    fun s_walletHomeMenuOpen() = runBlocking {
+        val data = newData().apply { seedAllowance() }
+        val app = newAppState(data)
+        render("s-wallet-menu", interact = { scene ->
+            val menu = Offset(354f * SCALE, 32f * SCALE)
+            scene.sendPointerEvent(PointerEventType.Press, menu)
+            scene.sendPointerEvent(PointerEventType.Release, menu)
+        }) { RealCashRoot(app) }
+    }
+
+    @Test
+    fun t_walletTapAndBack() = runBlocking {
+        val data = newData().apply { seedAllowance() }
+        val app = newAppState(data)
+        render("t-wallet-open", interact = { scene ->
+            val wallet = Offset(195f * SCALE, 480f * SCALE)
+            scene.sendPointerEvent(PointerEventType.Press, wallet)
+            scene.sendPointerEvent(PointerEventType.Release, wallet)
+        }) { RealCashRoot(app) }
+        assertEquals(Screen.WalletOpen, app.current)
+        assertTrue(app.back())
+        assertEquals(Screen.WalletHome, app.current)
+        assertTrue(!app.canGoBack)
+    }
+
+    @Test
+    fun t_openWalletFourBillsAndCoins() = runBlocking {
+        val data = newData().apply { seedAllowance() }
+        val app = newAppState(data)
+        app.openWallet()
+        render("t-wallet-open-layout") { RealCashRoot(app) }
+    }
+
+    @Test
+    fun u_openWalletTrayAndDarkTheme() = runBlocking {
+        val data = newData().apply { seedAllowance() }
+        val app = newAppState(data)
+        app.openWallet()
+        listOf(W10000, W5000, C500).forEach { denomination ->
+            app.walletOpen.toggle(data.wallet.state.value.inWallet.first { it.denomination == denomination }.id)
+        }
+        render("u-wallet-open-tray") { RealCashRoot(app) }
+        render("u-wallet-open-tray-dark", dark = true) { RealCashRoot(app) }
+    }
+
+    @Test
+    fun v_openWalletPaymentDialog() = runBlocking {
+        val data = newData().apply { seedAllowance() }
+        val app = newAppState(data)
+        app.openWallet()
+        app.walletOpen.showPaymentInfo()
+        render("v-wallet-open-payment") { RealCashRoot(app) }
+        render("v-wallet-open-payment-dark", dark = true) { RealCashRoot(app) }
+    }
+
+    private fun render(
+        name: String,
+        dark: Boolean = false,
+        height: Int = HEIGHT,
+        midway: (() -> Unit)? = null,
+        interact: ((ImageComposeScene) -> Unit)? = null,
+        content: @Composable () -> Unit,
+    ) {
+        val scene = ImageComposeScene(WIDTH * SCALE, height * SCALE, Density(SCALE.toFloat())) {
+            RealCashTheme(darkTheme = dark, content = content)
+        }
+        try {
+            // Advance the frame clock so enter animations (sheet, ripples) settle before the final frame.
+            var t = 0L
+            repeat(40) { frame ->
+                if (frame == 20) {
+                    midway?.invoke()
+                    interact?.invoke(scene)
+                }
+                scene.render(t)
+                t += FRAME_NANOS
+            }
+            val image = scene.render(t)
+            val png = checkNotNull(image.encodeToData(EncodedImageFormat.PNG)) { "PNG encoding failed" }.bytes
+            val file = File(outDir, "$name.png")
+            file.writeBytes(png)
+            println("screenshot: ${file.absolutePath}")
+            assertTrue(file.length() > 0, "empty screenshot $name")
+        } finally {
+            scene.close()
+        }
+    }
+
+    private companion object {
+        const val WIDTH = 390
+        const val HEIGHT = 844
+        const val SCALE = 2
+        const val FRAME_NANOS = 50_000_000L
+    }
+}
+ * @property title row title, also used by the screen's own header.
+ * @property description one line under the title.
+ * @property content the screen; call `onBack` from its back button.
+ */
+class DebugEntry(
+    val title: String,
+    val description: String? = null,
+    val content: @Composable (onBack: () -> Unit) -> Unit,
+)
+
+/** Pushed screen showing `platformDebugEntries[index]` (declared here, next to [DebugEntry]; part of [Screen]). */
+data class PlatformDebugScreen(val index: Int) : Screen
+
+/**
+ * Everything below the theme, driven by an existing [appState]. Used by [RealCashApp] and by the screenshot tests,
+ * which prepare the back stack and the sheet before rendering.
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
+@Composable
+fun RealCashRoot(
+    appState: AppState,
+    showDebugShortcut: Boolean = false,
+    modifier: Modifier = Modifier,
+    platformDebugEntries: List<DebugEntry> = emptyList(),
+) {
+    LaunchedEffect(appState) {
+        appState.env.messages.messages.collect { appState.snackbarHostState.showSnackbar(it) }
+    }
+    // The platform back event (Android back button / gesture) pops the back stack; at the home
+    // it is not consumed, so the system handles it. No-op where the platform sends no back events (desktop window).
+    BackHandler(enabled = appState.canGoBack) { appState.back() }
+    CompositionLocalProvider(LocalMoneyArt provides ResourceMoneyArt) {
+        Scaffold(
+            modifier = modifier,
+            containerColor = MaterialTheme.colorScheme.background,
+            snackbarHost = { SnackbarHost(appState.snackbarHostState) },
+        ) { padding ->
+            Box(Modifier.fillMaxSize().padding(padding)) {
+                when (val screen = appState.current) {
+                    Screen.WalletHome, Screen.WalletOpen -> WalletScene(appState, showDebugShortcut)
+                    Screen.Ledger -> LedgerScreen(appState.ledger, appState.env.timeZone, onBack = { appState.back() })
+                    Screen.Settings -> SettingsScreen(
+                        model = appState.settings,
+                        onBack = { appState.back() },
+                        onOpenSimulator = { appState.navigate(Screen.NotificationSimulator) },
+                        platformEntries = platformDebugEntries,
+                        onOpenPlatformEntry = { index -> appState.navigate(PlatformDebugScreen(index)) },
+                    )
+                    Screen.ReceiveAllowance -> {
+                        val model = remember { appState.receiveAllowance }
+                        ReceiveAllowanceScreen(model, onBack = { appState.back() })
+                    }
+                    Screen.NotificationSimulator -> NotificationSimulatorScreen(appState.simulator, onBack = { appState.back() })
+                    is Screen.TakeOut -> {
+                        val model = remember(screen) { appState.takeOut }
+                        TakeOutScreen(model, onBack = { appState.back() })
+                    }
+                    Screen.Exchange -> {
+                        val model = remember { appState.exchange }
+                        ExchangeScreen(model, onBack = { appState.back() })
+                    }
+                    is PlatformDebugScreen -> platformDebugEntries.getOrNull(screen.index)?.content?.invoke { appState.back() }
+                }
+            }
+        }
+        if (appState.confirmSheetOpen) {
+            ConfirmPaymentsSheet(appState.confirmPayments, onDismiss = appState::closeConfirmSheet)
+        }
+        if (appState.manualSheetOpen) {
+            ManualPaymentSheet(appState.manualPayment, onDismiss = appState::closeManualSheet, snackbarHostState = appState.snackbarHostState)
+        }
+    }
+}
+
+/** Keeps both wallet faces alive during the open/close transition. */
+@Composable
+private fun WalletScene(appState: AppState, showDebugShortcut: Boolean) {
+    val open = appState.current == Screen.WalletOpen
+    val transition = updateTransition(open, label = "wallet")
+    val opening by transition.animateFloat(
+        transitionSpec = { tween(durationMillis = if (targetState) 360 else 220) },
+        label = "wallet-opening",
+    ) { if (it) 1f else 0f }
+    Box(Modifier.fillMaxSize()) {
+        if (opening < 1f) {
+            WalletHomeScreen(
+                model = appState.walletHome,
+                onReceiveAllowance = { appState.navigate(Screen.ReceiveAllowance) },
+                onOpenPending = appState::openConfirmSheet,
+                onOpenWallet = appState::openWallet,
+                opening = opening,
+                enabled = !open,
+                modifier = Modifier.graphicsLayer { alpha = 1f - opening },
+                menu = { WalletMenu(appState, showDebugShortcut) },
+            )
+        }
+        if (open) {
+            WalletOpenScreen(
+                model = appState.walletOpen,
+                onBack = { appState.back() },
+                onManualPayment = appState::openManualSheet,
+                modifier = Modifier.graphicsLayer { alpha = opening },
+            )
+        }
+    }
+}
+
+/** All secondary destinations live in this menu; settings retains the platform debug entries. */
+@Composable
+private fun WalletMenu(appState: AppState, showDebugShortcut: Boolean) {
+    var expanded by remember { mutableStateOf(false) }
+    fun choose(action: () -> Unit) {
+        expanded = false
+        action()
+    }
+    Box {
+        IconButton(onClick = { expanded = true }, modifier = Modifier.semantics { contentDescription = Strings.HOME_MENU }) {
+            RcIconGlyph(RcIcon.MORE)
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(text = { Text(Strings.RECEIVE_ALLOWANCE) }, onClick = { choose { appState.navigate(Screen.ReceiveAllowance) } })
+            DropdownMenuItem(text = { Text(Strings.EXCHANGE) }, onClick = { choose { appState.navigate(Screen.Exchange) } })
+            DropdownMenuItem(text = { Text(Strings.MANUAL_TITLE) }, onClick = { choose(appState::openManualSheet) })
+            DropdownMenuItem(text = { Text(Strings.TAB_LEDGER) }, onClick = { choose { appState.navigate(Screen.Ledger) } })
+            DropdownMenuItem(text = { Text(Strings.TAB_SETTINGS) }, onClick = { choose { appState.navigate(Screen.Settings) } })
+            if (showDebugShortcut) {
+                DropdownMenuItem(text = { Text(Strings.SIMULATOR_SHORTCUT) }, onClick = { choose { appState.navigate(Screen.NotificationSimulator) } })
+            }
+            DropdownMenuItem(text = { Text("꺼내기") }, onClick = { choose { appState.navigate(Screen.TakeOut(refill = true)) } })
+        }
+    }
+}
+package com.jim.realcash.domain.ledger
+
+import com.jim.realcash.domain.model.CashUnit
+import com.jim.realcash.domain.model.CashUnitId
+import com.jim.realcash.domain.model.CashUnitState
+import com.jim.realcash.domain.model.Denomination
+import com.jim.realcash.domain.model.DetectedPayment
+import com.jim.realcash.domain.model.Hand
+import com.jim.realcash.domain.model.PaymentId
+import com.jim.realcash.domain.model.Settlement
+import com.jim.realcash.domain.model.Won
+import com.jim.realcash.domain.model.total
+
+/** Wallet state derived from the ledger. Never stored as the source of truth. */
+data class WalletState(
+    /** Every unit ever seen, in any state (except units removed by [Adjusted]). */
+    val units: Map<CashUnitId, CashUnit>,
+    /** The currently active hand, if any. */
+    val activeHand: Hand?,
+    /** Detected payments waiting for confirmation or settlement. */
+    val pendingPayments: Map<PaymentId, DetectedPayment>,
+    /** Settlements in the order they were applied. */
+    val settlements: List<Settlement>,
+    /**
+     * Identifiers of every applied event.
+     *
+     * NOTE: not in the original spec; added so that applying the same event twice is always rejected,
+     * even for events whose effect would otherwise be a no-op.
+     */
+    val appliedEventIds: Set<String> = emptySet(),
+) {
+    /** Units currently in the wallet. */
+    val inWallet: List<CashUnit> get() = units.values.filter { it.state == CashUnitState.IN_WALLET }
+
+    /** Units currently held in the active hand. */
+    val inHand: List<CashUnit> get() = units.values.filter { it.state == CashUnitState.IN_HAND }
+
+    /** Money the user still owns in cash: wallet plus hand. Never negative. */
+    val balance: Won get() = inWallet.total() + inHand.total()
+
+    /** Number of units per denomination in the given [state], largest denomination first, zeros omitted. */
+    fun countsByDenomination(state: CashUnitState): Map<Denomination, Int> {
+        val counts = units.values.filter { it.state == state }.groupingBy { it.denomination }.eachCount()
+        return Denomination.descending.filter { it in counts }.associateWith { counts.getValue(it) }
+    }
+
+    /**
+     * Returns the list of violated invariants (empty when the state is consistent).
+     *
+     * The reducer keeps these invariants by construction; this full check is O(n) and meant for tests
+     * and debug assertions rather than for every event.
+     */
+    fun invariantViolations(): List<String> {
+        val problems = mutableListOf<String>()
+        units.forEach { (key, unit) ->
+            if (key != unit.id) problems += "unit stored under foreign key: $key -> ${unit.id}"
+        }
+        val handIds = activeHand?.unitIds.orEmpty()
+        if (handIds.size != handIds.toSet().size) problems += "active hand lists a unit twice"
+        val inHandIds = inHand.map { it.id }.toSet()
+        if (inHandIds != handIds.toSet()) {
+            problems += "IN_HAND units $inHandIds differ from active hand units ${handIds.toSet()}"
+        }
+        if (activeHand != null && handIds.isEmpty()) problems += "active hand holds no units"
+        if (balance.value < 0) problems += "negative balance $balance"
+        settlements.forEach { s ->
+            if (s.shortfall.value < 0) problems += "negative shortfall in ${s.paymentId}"
+            s.paidUnitIds.forEach { id ->
+                if (units[id]?.state != CashUnitState.SPENT) problems += "paid unit $id is not SPENT"
+            }
+        }
+        if (settlements.map { it.paymentId }.toSet().size != settlements.size) problems += "payment settled twice"
+        settlements.forEach { s ->
+            if (s.paymentId in pendingPayments) problems += "settled payment ${s.paymentId} still pending"
+        }
+        return problems
+    }
+
+    /** Factory for the initial state. */
+    companion object {
+        /** A wallet before any event has been applied. */
+        val EMPTY: WalletState = WalletState(
+            units = emptyMap(),
+            activeHand = null,
+            pendingPayments = emptyMap(),
+            settlements = emptyList(),
+        )
+    }
+}
+package com.jim.realcash.data
+
+import com.jim.realcash.domain.calc.CashUnitFactory
+import com.jim.realcash.domain.calc.HandExpiry
+import com.jim.realcash.domain.calc.Settler
+import com.jim.realcash.domain.ledger.Adjusted
+import com.jim.realcash.domain.ledger.AllowanceReceived
+import com.jim.realcash.domain.ledger.Exchanged
+import com.jim.realcash.domain.ledger.HandReturned
+import com.jim.realcash.domain.ledger.InvalidLedgerEventException
+import com.jim.realcash.domain.ledger.LedgerEvent
+import com.jim.realcash.domain.ledger.MovedToHand
+import com.jim.realcash.domain.ledger.PaymentDetected
+import com.jim.realcash.domain.ledger.PaymentRejected
+import com.jim.realcash.domain.ledger.Refunded
+import com.jim.realcash.domain.ledger.ReturnReason
+import com.jim.realcash.domain.ledger.Settled
+import com.jim.realcash.domain.ledger.WalletReducer
+import com.jim.realcash.domain.ledger.WalletState
+import com.jim.realcash.domain.ledger.fold
+import com.jim.realcash.domain.model.CashUnitId
+import com.jim.realcash.domain.model.CashUnitSource
+import com.jim.realcash.domain.model.Denomination
+import com.jim.realcash.domain.model.DetectedPayment
+import com.jim.realcash.domain.model.Hand
+import com.jim.realcash.domain.model.HandId
+import com.jim.realcash.domain.model.PaymentId
+import com.jim.realcash.domain.model.PullPolicy
+import com.jim.realcash.domain.model.SettlementFlag
+import com.jim.realcash.domain.model.Won
+import com.jim.realcash.domain.util.IdGenerator
+import kotlin.time.Clock
+import kotlin.time.Duration
+import kotlin.time.Instant
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.datetime.LocalDate
+
+/**
+ * The single entry point for reading and changing the wallet. Used by the UI and by platform services.
+ *
+ * The ledger in the database is the source of truth; [state] is the fold of every stored event, kept in memory.
+ * Every mutation:
+ * 1. builds the event(s) from the current state,
+ * 2. validates them with [WalletReducer.reduce] (an invalid event throws and never reaches the database),
+ * 3. appends them atomically to the store,
+ * 4. publishes the new state on [state].
+ *
+ * Mutations are serialised with a [Mutex], so concurrent callers (UI + notification service) cannot interleave.
+ *
+ * Errors: [IllegalArgumentException] for malformed input (negative counts, non-positive TTL, ...);
+ * [IllegalStateException] — including the domain's [InvalidLedgerEventException] — when the request does not
+ * fit the current wallet (unknown unit, a second hand, payment not pending, ...).
+ */
+class WalletRepository internal constructor(
+    private val store: LedgerStore,
+    private val clock: Clock,
+    private val ids: IdGenerator,
+) {
+    private val mutex = Mutex()
+    private val _state = MutableStateFlow(WalletState.EMPTY)
+    private val _history = MutableStateFlow<List<LedgerEvent>>(emptyList())
+    private var loaded = false
+
+    /** Ledger status of every payment id ever detected. Guarded by [mutex]; derived from the same events as [state]. */
+    private val paymentStatus = mutableMapOf<PaymentId, PaymentLedgerStatus>()
+
+    /**
+     * Current wallet state. Holds [WalletState.EMPTY] until the ledger has been loaded, which happens on the
+     * first call to [load] or to any mutation; call [load] at app start to avoid showing an empty wallet.
+     */
+    val state: StateFlow<WalletState> = _state.asStateFlow()
+
+    // NOTE(T5b): the ledger tab needs the events themselves (timestamps, allowances, exchanges, expired hands), not
+    // only their fold. The list is filled on [load] and appended after every successful mutation under the same
+    // [mutex], so it always equals `store.loadAll()` in append order. Kept in memory like [state]; when snapshots
+    // arrive (see ensureLoaded), this should become a paged query instead.
+    /**
+     * Every stored ledger event in append order (oldest first). Empty until the ledger has been loaded, exactly
+     * like [state]; [state] is always the fold of this list.
+     */
+    val history: StateFlow<List<LedgerEvent>> = _history.asStateFlow()
+
+    /** Loads and folds the ledger if that has not happened yet; returns the current state. Idempotent. */
+    suspend fun load(): WalletState = mutex.withLock { ensureLoaded() }
+
+    /**
+     * True if the ledger already knows payment [id] in any form: pending, settled, rejected or refunded.
+     * Loads the ledger first if necessary.
+     */
+    suspend fun hasPayment(id: PaymentId): Boolean = paymentStatusOf(id) != null
+
+    /** Ledger status of payment [id], or `null` if it was never detected. */
+    internal suspend fun paymentStatusOf(id: PaymentId): PaymentLedgerStatus? = mutex.withLock {
+        ensureLoaded()
+        paymentStatus[id]
+    }
+
+    /** Adds a new allowance to the wallet: one unit per counted bill/coin in [split], source ALLOWANCE. */
+    suspend fun receiveAllowance(split: Map<Denomination, Int>, periodStart: LocalDate): AllowanceReceived =
+        mutate { _, now ->
+            val units = CashUnitFactory.create(split, now, CashUnitSource.ALLOWANCE, ids)
+            single(AllowanceReceived(ids.next(), now, units, periodStart))
+        }
+
+    /**
+     * Takes [unitIds] (wallet units) out into a new hand that expires after [ttl].
+     *
+     * Callers normally pass `AppSettings.handTtl`; the default is the domain default ([Hand.DEFAULT_TTL], 6h).
+     */
+    suspend fun moveToHand(
+        unitIds: List<CashUnitId>,
+        expectedAmount: Won? = null,
+        memo: String? = null,
+        ttl: Duration = Hand.DEFAULT_TTL,
+    ): MovedToHand {
+        require(ttl.isPositive()) { "hand ttl must be positive, was $ttl" }
+        return mutate { _, now ->
+            val hand = Hand(
+                id = HandId(ids.next()),
+                unitIds = unitIds,
+                createdAt = now,
+                expiresAt = Hand.defaultExpiry(now, ttl),
+                expectedAmount = expectedAmount,
+                memo = memo,
+            )
+            single(MovedToHand(ids.next(), now, hand))
+        }
+    }
+
+    /** Puts the active hand back into the wallet. Throws [IllegalStateException] if no hand is active. */
+    suspend fun returnHand(reason: ReturnReason = ReturnReason.USER): HandReturned = mutate { state, now ->
+        val hand = checkNotNull(state.activeHand) { "no active hand to return" }
+        single(HandReturned(ids.next(), now, hand.id, reason))
+    }
+
+    /**
+     * Returns the active hand with reason EXPIRED if it has expired at [now]; otherwise does nothing.
+     * The event itself is stamped with the clock time. Returns the appended event, or `null`.
+     */
+    suspend fun returnHandIfExpired(now: Instant = clock.now()): HandReturned? = mutate { state, eventTime ->
+        val hand = state.activeHand
+        if (hand != null && HandExpiry.isExpired(hand, now)) {
+            single(HandReturned(ids.next(), eventTime, hand.id, ReturnReason.EXPIRED))
+        } else {
+            Mutation(emptyList(), null)
+        }
+    }
+
+    /** Records a detected (or manually entered) payment or refund as pending. */
+    suspend fun recordDetectedPayment(payment: DetectedPayment): PaymentDetected = mutate { _, now ->
+        single(PaymentDetected(ids.next(), now, payment))
+    }
+
+    /** The user said a pending detection was not a payment ("아니에요"). */
+    suspend fun rejectPayment(id: PaymentId): PaymentRejected = mutate { _, now ->
+        single(PaymentRejected(ids.next(), now, id))
+    }
+
+    /**
+     * Settles the pending payment [paymentId] against the active hand and the wallet using [Settler.settle].
+     *
+
+exec
+/bin/zsh -lc "python3 - <<'PY'
+from pathlib import Path
+p=Path('shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/components/ClosedWallet.kt')
+p.write_text('''package com.jim.realcash.ui.components
+
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.dp
+import com.jim.realcash.ui.Strings
+import com.jim.realcash.ui.resources.Res
+import com.jim.realcash.ui.resources.wallet_closed
+import org.jetbrains.compose.resources.painterResource
+
+/** Reviewed wallet.closed.b artwork, shown whole at its manifest aspect ratio (1024×945). */
+@Composable
+fun ClosedWallet(opening: Float, enabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Image(
+        painter = painterResource(Res.drawable.wallet_closed),
+        contentDescription = Strings.OPEN_WALLET,
+        contentScale = ContentScale.Fit,
+        modifier = modifier.fillMaxWidth().aspectRatio(1024f / 945f)
+            .clickable(enabled = enabled, role = Role.Button, onClickLabel = Strings.OPEN_WALLET, onClick = onClick)
+            .graphicsLayer {
+                scaleX = 1f + 0.04f * opening
+                scaleY = 1f + 0.04f * opening
+                translationY = -12.dp.toPx() * opening
+            },
+    )
+}
+''')
+p=Path('shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/wallet/WalletHomeModel.kt')
+s=p.read_text().replace('    val billCount: Int,\\n','').replace('    /** One side layer per five bills, capped at six; coins do not increase bill thickness. */\\n    val sideLayers: Int get() = if (billCount == 0) 0 else ((billCount - 1) / 5 + 1).coerceAtMost(6)\\n\\n','').replace('                billCount = state.inWallet.count { it.denomination.kind == Denomination.Kind.BILL },\\n','')
+p.write_text(s)
+p=Path('shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/wallet/WalletHomeScreen.kt')
+s=p.read_text().replace('import androidx.compose.foundation.layout.heightIn\\n','')
+s=s.replace('            Spacer(Modifier.height(88.dp))\\n            FlowRow(\\n                Modifier.fillMaxWidth(0.86f).heightIn(min = 48.dp),','''            Spacer(Modifier.height(40.dp))
+            // Reserve two badge rows even when empty, so badges never move the wallet.
+            Box(Modifier.fillMaxWidth(0.86f).height(96.dp), contentAlignment = Alignment.BottomCenter) {
+            FlowRow(
+                Modifier.fillMaxWidth(),''')
+s=s.replace('            Spacer(Modifier.height(12.dp))\\n            ClosedWallet(ui.sideLayers, opening, ui.loaded && enabled, onOpenWallet, Modifier.fillMaxWidth(0.86f))','''            }
+            Spacer(Modifier.height(12.dp))
+            ClosedWallet(opening, ui.loaded && enabled, onOpenWallet, Modifier.fillMaxWidth(0.70f))''')
+# indent the nested badge row
+start=s.index('            FlowRow(\\n                Modifier.fillMaxWidth(),')
+end=s.index('            }\\n            Spacer(Modifier.height(12.dp))',start)
+s=s[:start]+''.join('    '+l if l.strip() else l for l in s[start:end].splitlines(keepends=True))+s[end:]
+p.write_text(s)
+p=Path('shared/ui/src/jvmTest/kotlin/com/jim/realcash/ui/wallet/WalletHomeModelTest.kt')
+s=p.read_text().replace('fun thicknessBoundariesAndHandBalanceFollowRepositoryState()', 'fun handBalanceAndWalletContentsFollowRepositoryState()')
+start=s.index('            for ((bills, layers)')
+end=s.index('            data.wallet.receiveAllowance',start)
+s=s[:start]+s[end:]
+s=s.replace('            assertEquals(4, home.billCount)\\n            assertEquals(1, home.sideLayers)\\n','').replace('            assertEquals(2, WalletHomeUi.from(data.wallet.state.value, AppSettings.DEFAULT, now, zone, true).sideLayers)','            assertEquals(Won(0), WalletHomeUi.from(data.wallet.state.value, AppSettings.DEFAULT, now, zone, true).handTotal)')
+s=s.replace('fun coinOnlyWalletIsNonemptyWithoutSideLayers()', 'fun coinOnlyWalletIsNonempty()').replace('            assertEquals(0, home.sideLayers)\\n','')
+p.write_text(s)
+p=Path('shared/ui/src/jvmTest/kotlin/com/jim/realcash/ui/screenshot/ScreenshotTest.kt')
+s=p.read_text().replace('        assertEquals(30, app.walletHome.ui.value.billCount)\\n        assertEquals(6, app.walletHome.ui.value.sideLayers)\\n        render(\"r-wallet-thick\")','        assertEquals(30, data.wallet.state.value.inWallet.size)\\n        render(\"r-wallet-30bills\")')
+s=s.replace('        height: Int = HEIGHT,','        height: Int = HEIGHT,\\n        scale: Int = SCALE,')
+s=s.replace('    ) {\\n        val scene = ImageComposeScene(WIDTH * SCALE, height * SCALE, Density(SCALE.toFloat())) {','    ): File {\\n        val scene = ImageComposeScene(WIDTH * scale, height * scale, Density(scale.toFloat())) {')
+s=s.replace('            assertTrue(file.length() > 0, \"empty screenshot "'$name")'"','            assertTrue(file.length() > 0, \"empty screenshot "'$name")'"\\n            return file')
+p.write_text(s)
+PY" in /Users/jeonbyeongseon/realcash-worker/scripts/log/ui-worktree
+ succeeded in 0ms:
+exec
+/bin/zsh -lc "python3 - <<'PY'
+from pathlib import Path
+p=Path('shared/ui/src/jvmTest/kotlin/com/jim/realcash/ui/screenshot/ScreenshotTest.kt')
+s=p.read_text().replace('import java.io.File\\n','import java.io.File\\nimport javax.imageio.ImageIO\\n')
+s=s.replace('    ): File {\\n        val scene = ImageComposeScene', '    ) {\\n        val scene = ImageComposeScene').replace('            return file\\n','')
+pos=s.index('    @Test\\n    fun s_walletHomeMenuOpen()')
+s=s[:pos]+'''    @Test
+    fun h3_walletSilhouetteStaysIdenticalForEmptyThirtyBillsAndBadges() = runBlocking {
+        val emptyData = newData()
+        val emptyApp = newAppState(emptyData)
+        val thirtyData = newData().apply { wallet.receiveAllowance(mapOf(W10000 to 30), periodStart) }
+        val thirtyApp = newAppState(thirtyData)
+
+        render(\"h3-home-empty\", scale = 1) { RealCashRoot(emptyApp) }
+        render(\"h3-home-30bills\", scale = 1) { RealCashRoot(thirtyApp) }
+        val emptySilhouette = walletSilhouette(\"h3-home-empty\")
+        assertTrue(emptySilhouette.size > 10_000, \"the full wallet silhouette must be visible\")
+        assertEquals(emptySilhouette, walletSilhouette(\"h3-home-30bills\"), \"0 and 30 bills must have the same wallet outline coordinates\")
+
+        emptyData.seedPending()
+        render(\"h3-home-empty-badges\", scale = 1) { RealCashRoot(emptyApp) }
+        assertEquals(emptySilhouette, walletSilhouette(\"h3-home-empty-badges\"))
+        // Keep 30 bills in the wallet while showing both badges (which wrap into two rows).
+        thirtyData.wallet.receiveAllowance(mapOf(W10000 to 1), periodStart)
+        thirtyData.seedHand(W10000)
+        thirtyData.seedPending()
+        assertEquals(30, thirtyData.wallet.state.value.inWallet.size)
+        render(\"h3-home-30bills-badges\", scale = 1) { RealCashRoot(thirtyApp) }
+        assertEquals(emptySilhouette, walletSilhouette(\"h3-home-30bills-badges\"), \"wrapped badges must not move or resize the wallet\")
+    }
+
+    /** The wallet is the largest connected dark region; compare actual artwork pixels, not a layout formula. */
+    private fun walletSilhouette(name: String): Set<Int> {
+        val image = ImageIO.read(File(outDir, \""'$name.png"))
+        assertEquals(WIDTH, image.width)
+        assertEquals(HEIGHT, image.height)
+        val visited = BooleanArray(WIDTH * HEIGHT)
+        var largest = emptySet<Int>()
+        fun dark(index: Int): Boolean {
+            val rgb = image.getRGB(index % WIDTH, index / WIDTH)
+            return ((rgb shr 16) and 255) < 120 && ((rgb shr 8) and 255) < 120 && (rgb and 255) < 120
+        }
+        for (start in visited.indices) {
+            if (visited[start]) continue
+            visited[start] = true
+            if (!dark(start)) continue
+            val region = mutableSetOf(start)
+            val queue = ArrayDeque<Int>().apply { add(start) }
+            while (queue.isNotEmpty()) {
+                val index = queue.removeFirst()
+                val x = index % WIDTH
+                val y = index / WIDTH
+                val neighbors = listOfNotNull(
+                    (index - 1).takeIf { x > 0 }, (index + 1).takeIf { x < WIDTH - 1 },
+                    (index - WIDTH).takeIf { y > 0 }, (index + WIDTH).takeIf { y < HEIGHT - 1 },
+                )
+                for (neighbor in neighbors) {
+                    if (visited[neighbor]) continue
+                    visited[neighbor] = true
+                    if (dark(neighbor)) {
+                        region.add(neighbor)
+                        queue.add(neighbor)
+                    }
+                }
+            }
+            if (region.size > largest.size) largest = region
+        }
+        return largest
+    }
+
+'"'''+s[pos:]
+p.write_text(s)
+PY
+JAVA_HOME="'$(/usr/libexec/java_home -v 21) ./gradlew :shared:ui:jvmTest' in /Users/jeonbyeongseon/realcash-worker/scripts/log/ui-worktree
+exec
+/bin/zsh -lc "sed -n '75,150p' shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/wallet/WalletHomeScreen.kt; grep -R -nE 'sideLayers|billCount|wallet-thick' shared/ui/src; cat .gitignore; cat shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/components/ClosedWallet.kt" in /Users/jeonbyeongseon/realcash-worker/scripts/log/ui-worktree
+ succeeded in 0ms:
+                    style = MaterialTheme.typography.displayLarge.copy(fontWeight = FontWeight.Bold),
+                    textAlign = TextAlign.Center,
+                )
+                Text(
+                    Strings.REMAINING,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.align(Alignment.CenterVertically).padding(start = 8.dp),
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "${ui.periodRange} · ${Strings.daysLeft(ui.daysLeft)}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(40.dp))
+            // Reserve two badge rows even when empty, so badges never move the wallet.
+            Box(Modifier.fillMaxWidth(0.86f).height(96.dp), contentAlignment = Alignment.BottomCenter) {
+                FlowRow(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    if (ui.pendingCount > 0) {
+                        Surface(
+                            onClick = onOpenPending, enabled = enabled,
+                            color = MaterialTheme.colorScheme.tertiaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                            shape = MaterialTheme.shapes.large,
+                        ) { Text(Strings.pendingBadge(ui.pendingCount), Modifier.padding(horizontal = 14.dp, vertical = 12.dp), style = MaterialTheme.typography.labelLarge) }
+                    }
+                    if (ui.handTotal.value > 0) {
+                        Text(
+                            Strings.handBadge(ui.handTotal.formatted()),
+                            Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            ClosedWallet(opening, ui.loaded && enabled, onOpenWallet, Modifier.fillMaxWidth(0.70f))
+            if (ui.loaded && ui.walletEmpty) {
+                Spacer(Modifier.height(30.dp))
+                Button(onClick = onReceiveAllowance, enabled = enabled, modifier = Modifier.fillMaxWidth(0.72f).height(56.dp)) {
+                    Text(Strings.ADD_ALLOWANCE, style = MaterialTheme.typography.titleMedium)
+                }
+            }
+        }
+        Box(Modifier.align(Alignment.TopEnd).padding(top = 8.dp, end = 12.dp)) { if (enabled) menu() }
+    }
+}
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+local.properties
+
+# Kotlin
+.kotlin/
+*.class
+*.log
+
+# IntelliJ / Android Studio / Fleet
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+.fleet/
+
+# VS Code
+.vscode/
+
+# Xcode
+DerivedData/
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.moved-aside
+build-iphoneos/
+build-iphonesimulator/
+
+# CocoaPods / SwiftPM
+Pods/
+.build/
+.swiftpm/
+
+# macOS
+.DS_Store
+
+# 스크린샷 테스트 출력은 build/screenshots. shared/ui/screenshots/ 는 Codex 검수용 사본(워커 브랜치에만, 머지 때 제거)
+package com.jim.realcash.ui.components
+
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.dp
+import com.jim.realcash.ui.Strings
+import com.jim.realcash.ui.resources.Res
+import com.jim.realcash.ui.resources.wallet_closed
+import org.jetbrains.compose.resources.painterResource
+
+/** Reviewed wallet.closed.b artwork, shown whole at its manifest aspect ratio (1024×945). */
+@Composable
+fun ClosedWallet(opening: Float, enabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Image(
+        painter = painterResource(Res.drawable.wallet_closed),
+        contentDescription = Strings.OPEN_WALLET,
+        contentScale = ContentScale.Fit,
+        modifier = modifier.fillMaxWidth().aspectRatio(1024f / 945f)
+            .clickable(enabled = enabled, role = Role.Button, onClickLabel = Strings.OPEN_WALLET, onClick = onClick)
+            .graphicsLayer {
+                scaleX = 1f + 0.04f * opening
+                scaleY = 1f + 0.04f * opening
+                translationY = -12.dp.toPx() * opening
+            },
+    )
+}
+
+exec
+/bin/zsh -lc "find shared/ui/src -type f -mmin -20; find shared/ui/build/screenshots -name 'h3-*'" in /Users/jeonbyeongseon/realcash-worker/scripts/log/ui-worktree
+ succeeded in 0ms:
+shared/ui/src/jvmTest/kotlin/com/jim/realcash/ui/screenshot/ScreenshotTest.kt
+shared/ui/src/jvmTest/kotlin/com/jim/realcash/ui/walletopen/WalletOpenGestureTest.kt
+shared/ui/src/jvmTest/kotlin/com/jim/realcash/ui/walletopen/WalletOpenModelTest.kt
+shared/ui/src/jvmTest/kotlin/com/jim/realcash/ui/wallet/WalletHomeModelTest.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/components/ClosedWallet.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/walletopen/WalletOpenScreen.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/walletopen/WalletMotion.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/walletopen/WalletOpenModel.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/wallet/WalletHomeScreen.kt
+shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/wallet/WalletHomeModel.kt
+
+exec
+/bin/zsh -lc "ls shared/ui/build/screenshots/h3*; sed -n '1,100p' shared/ui/build/test-results/jvmTest/TEST-com.jim.realcash.ui.wallet.WalletNavigationTest.xml" in /Users/jeonbyeongseon/realcash-worker/scripts/log/ui-worktree
+ succeeded in 0ms:
+shared/ui/build/screenshots/h3-home-30bills-badges.png
+shared/ui/build/screenshots/h3-home-30bills.png
+shared/ui/build/screenshots/h3-home-empty-badges.png
+shared/ui/build/screenshots/h3-home-empty.png
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.jim.realcash.ui.wallet.WalletNavigationTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-11-04T16:35:47.436Z" hostname="jeonbyeongseon-ui-MacBookPro.local" time="1.349">
+  <properties/>
+  <testcase name="walletTapThenVisibleBackClosesAndCanReopen[jvm]" classname="com.jim.realcash.ui.wallet.WalletNavigationTest" time="0.319"/>
+  <testcase name="emptyWalletAllowanceButtonOpensReceiveAllowance[jvm]" classname="com.jim.realcash.ui.wallet.WalletNavigationTest" time="0.074"/>
+  <testcase name="allMenuDestinationsOpenAndPushedScreensHaveWorkingBackButtons[jvm]" classname="com.jim.realcash.ui.wallet.WalletNavigationTest" time="0.853"/>
+  <testcase name="pendingBadgeOpensExistingConfirmationSheet[jvm]" classname="com.jim.realcash.ui.wallet.WalletNavigationTest" time="0.103"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
+
+codex
+0장·30장과 배지가 있는 장면의 스크린샷이 생성됐습니다. 첫 테스트 실행에서 용돈 받기 버튼을 탭하는 기존 검사의 실패가 확인됐습니다. 새 그림의 세로 길이로 버튼 위치가 내려갔으므로, 스크린샷에서 실제 위치를 확인해 테스트 좌표를 조정하겠습니다.
+ exited 1 in 50427ms:
+Starting a Gradle Daemon (subsequent builds will be faster)
+> Task :shared:domain:kmpPartiallyResolvedDependenciesChecker
+> Task :shared:domain:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :shared:domain:compileKotlinJvm UP-TO-DATE
+> Task :shared:domain:compileJvmMainJava NO-SOURCE
+> Task :shared:domain:jvmProcessResources NO-SOURCE
+> Task :shared:domain:processJvmMainResources SKIPPED
+> Task :shared:domain:jvmMainClasses UP-TO-DATE
+> Task :shared:domain:jvmJar UP-TO-DATE
+> Task :shared:data:kmpPartiallyResolvedDependenciesChecker
+> Task :shared:data:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :shared:data:generateCommonMainRealCashDatabaseInterface UP-TO-DATE
+> Task :shared:data:compileKotlinJvm UP-TO-DATE
+> Task :shared:data:compileJvmMainJava NO-SOURCE
+> Task :shared:data:jvmProcessResources NO-SOURCE
+> Task :shared:data:processJvmMainResources SKIPPED
+> Task :shared:data:jvmMainClasses UP-TO-DATE
+> Task :shared:data:jvmJar UP-TO-DATE
+> Task :shared:ui:kmpPartiallyResolvedDependenciesChecker
+> Task :shared:ui:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :shared:ui:convertXmlValueResourcesForCommonMain NO-SOURCE
+> Task :shared:ui:copyNonXmlValueResourcesForCommonMain
+> Task :shared:ui:prepareComposeResourcesTaskForCommonMain
+> Task :shared:ui:generateResourceAccessorsForCommonMain
+> Task :shared:ui:convertXmlValueResourcesForJvmMain NO-SOURCE
+> Task :shared:ui:copyNonXmlValueResourcesForJvmMain NO-SOURCE
+> Task :shared:ui:prepareComposeResourcesTaskForJvmMain NO-SOURCE
+> Task :shared:ui:generateResourceAccessorsForJvmMain NO-SOURCE
+> Task :shared:ui:generateActualResourceCollectorsForJvmMain UP-TO-DATE
+> Task :shared:ui:generateComposeResClass UP-TO-DATE
+> Task :shared:ui:generateExpectResourceCollectorsForCommonMain UP-TO-DATE
+> Task :shared:ui:convertXmlValueResourcesForCommonTest NO-SOURCE
+> Task :shared:ui:copyNonXmlValueResourcesForCommonTest NO-SOURCE
+> Task :shared:ui:prepareComposeResourcesTaskForCommonTest NO-SOURCE
+> Task :shared:ui:generateResourceAccessorsForCommonTest NO-SOURCE
+> Task :shared:ui:convertXmlValueResourcesForJvmTest NO-SOURCE
+> Task :shared:ui:copyNonXmlValueResourcesForJvmTest NO-SOURCE
+> Task :shared:ui:prepareComposeResourcesTaskForJvmTest NO-SOURCE
+> Task :shared:ui:generateResourceAccessorsForJvmTest NO-SOURCE
+> Task :shared:ui:assembleJvmMainResources
+> Task :shared:ui:jvmProcessResources
+> Task :shared:ui:processJvmMainResources SKIPPED
+> Task :shared:ui:assembleJvmTestResources UP-TO-DATE
+> Task :shared:ui:jvmTestProcessResources UP-TO-DATE
+> Task :shared:ui:processJvmTestResources SKIPPED
+> Task :shared:ui:compileKotlinJvm
+> Task :shared:ui:compileJvmMainJava NO-SOURCE
+> Task :shared:ui:jvmMainClasses
+> Task :shared:ui:jvmJar
+> Task :shared:ui:compileTestKotlinJvm
+> Task :shared:ui:compileJvmTestJava NO-SOURCE
+> Task :shared:ui:jvmTestClasses
+
+> Task :shared:ui:jvmTest
+
+WalletNavigationTest[jvm] > emptyWalletAllowanceButtonOpensReceiveAllowance[jvm] FAILED
+    java.lang.AssertionError at WalletNavigationTest.kt:110
+
+133 tests completed, 1 failed
+
+> Task :shared:ui:jvmTest FAILED
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':shared:ui:jvmTest'.
+> There were failing tests. See the report at: file:///Users/jeonbyeongseon/realcash-worker/scripts/log/ui-worktree/shared/ui/build/reports/tests/jvmTest/index.html
+
+* Try:
+> Run with --scan to get full insights.
+
+BUILD FAILED in 49s
+22 actionable tasks: 12 executed, 10 up-to-date
+
+exec
+/bin/zsh -lc "python3 - <<'PY'
+from pathlib import Path
+p=Path('shared/ui/src/jvmTest/kotlin/com/jim/realcash/ui/wallet/WalletNavigationTest.kt')
+s=p.read_text().replace('scene.tap(195f, 600f)', 'scene.tap(195f, 658f)')
+p.write_text(s)
+p=Path('shared/ui/src/jvmTest/kotlin/com/jim/realcash/ui/screenshot/ScreenshotTest.kt')
+s=p.read_text().replace('while showing both badges (which wrap into two rows).', 'while showing both badges.').replace('\"wrapped badges must not move or resize the wallet\"', '\"badges must not move or resize the wallet\"')
+p.write_text(s)
+PY
+JAVA_HOME="'$(/usr/libexec/java_home -v 21) ./gradlew :shared:ui:jvmTest' in /Users/jeonbyeongseon/realcash-worker/scripts/log/ui-worktree
+exec
+/bin/zsh -lc "python3 - <<'PY'
+import xml.etree.ElementTree as E
+from pathlib import Path
+p=Path('shared/ui/build/test-results/jvmTest/TEST-com.jim.realcash.ui.screenshot.ScreenshotTest.xml')
+root=E.parse(p).getroot()
+for t in root.findall('testcase'):
+ if 'h3_' in t.attrib['name']: print(t.attrib, 'failures:',len(t.findall('failure')))
+PY" in /Users/jeonbyeongseon/realcash-worker/scripts/log/ui-worktree
+ succeeded in 0ms:
+{'name': 'h3_walletSilhouetteStaysIdenticalForEmptyThirtyBillsAndBadges[jvm]', 'classname': 'com.jim.realcash.ui.screenshot.ScreenshotTest', 'time': '0.377'} failures: 0
+
+exec
+/bin/zsh -lc "sed -n '30,90p' shared/ui/src/commonMain/kotlin/com/jim/realcash/ui/wallet/WalletHomeModel.kt; sed -n '54,100p' shared/ui/src/jvmTest/kotlin/com/jim/realcash/ui/wallet/WalletHomeModelTest.kt; sed -n '320,425p' shared/ui/src/jvmTest/kotlin/com/jim/realcash/ui/screenshot/ScreenshotTest.kt" in /Users/jeonbyeongseon/realcash-worker/scripts/log/ui-worktree
+ succeeded in 0ms:
+import kotlinx.datetime.number
+import kotlinx.datetime.toLocalDateTime
+
+/** Count of one denomination, shared with the take-out and exchange screens. */
+data class DenominationCount(val denomination: Denomination, val count: Int)
+
+/** Only the information visible on the closed-wallet home. */
+data class WalletHomeUi(
+    val loaded: Boolean,
+    val periodLabel: String,
+    val periodRange: String,
+    val daysLeft: Int,
+    /** Domain balance: wallet plus hand. */
+    val balance: Won,
+    val handTotal: Won,
+    val walletEmpty: Boolean,
+    val pendingCount: Int,
+) {
+    companion object {
+        /** Uses the domain's period and balance without duplicating budget or money rules. */
+        fun from(state: WalletState, settings: AppSettings, now: Instant, timeZone: TimeZone, loaded: Boolean): WalletHomeUi {
+            val today = now.toLocalDateTime(timeZone).date
+            val policy = settings.budgetPeriodPolicy
+            val period = BudgetPeriods.currentPeriod(policy, today)
+            return WalletHomeUi(
+                loaded = loaded,
+                periodLabel = if (policy.cycle == BudgetPeriodPolicy.Cycle.MONTHLY) Strings.THIS_MONTH else Strings.THIS_WEEK,
+                periodRange = "${period.start.month.number}.${period.start.day} – ${period.endInclusive.month.number}.${period.endInclusive.day}",
+                daysLeft = today.daysUntil(period.endInclusive),
+                balance = state.balance,
+                handTotal = state.inHand.total(),
+                walletEmpty = state.inWallet.isEmpty(),
+                pendingCount = state.pendingPayments.size,
+            )
+        }
+    }
+}
+
+/** Observes the closed wallet and posts newly completed settlements as a single snackbar line. */
+class WalletHomeModel(scope: CoroutineScope, private val env: AppEnvironment) {
+    private val data = env.data
+    private val loaded = MutableStateFlow(false)
+    private val ticker = flow {
+        while (true) {
+            emit(env.clock.now())
+            delay(1.minutes)
+        }
+    }
+
+    val ui: StateFlow<WalletHomeUi> = combine(data.wallet.state, data.settings.settings, ticker, loaded) { state, settings, now, ready ->
+        WalletHomeUi.from(state, settings, now, env.timeZone, ready)
+    }.stateIn(
+        scope,
+        SharingStarted.Eagerly,
+        WalletHomeUi.from(data.wallet.state.value, data.settings.settings.value, env.clock.now(), env.timeZone, false),
+    )
+
+    init {
+        scope.launchCatching(env.messages) {
+            data.settings.load()
+            data.wallet.load()
+        assertEquals("11.2 – 11.8", weekly.periodRange)
+        assertEquals(4, weekly.daysLeft)
+    }
+
+    @Test
+    fun handBalanceAndWalletContentsFollowRepositoryState() = runTest {
+        val driver = DriverFactory().createDriver()
+        try {
+            val data = RealCashData(driver, clock, SequentialIdGenerator(), EmptyCoroutineContext)
+            data.wallet.receiveAllowance(mapOf(W10000 to 6, C500 to 2), periodStart)
+            data.wallet.moveToHand(data.wallet.state.value.inWallet.filter { it.denomination == W10000 }.take(2).map { it.id })
+            val home = WalletHomeUi.from(data.wallet.state.value, AppSettings.DEFAULT, now, zone, true)
+            assertEquals(Won(61_000), home.balance)
+            assertEquals(Won(20_000), home.handTotal)
+            assertFalse(home.walletEmpty)
+            data.wallet.returnHand(com.jim.realcash.domain.ledger.ReturnReason.USER)
+            assertEquals(Won(0), WalletHomeUi.from(data.wallet.state.value, AppSettings.DEFAULT, now, zone, true).handTotal)
+        } finally {
+            driver.close()
+        }
+    }
+
+    @Test
+    fun coinOnlyWalletIsNonempty() = runTest {
+        val driver = DriverFactory().createDriver()
+        try {
+            val data = RealCashData(driver, clock, SequentialIdGenerator(), EmptyCoroutineContext)
+            data.wallet.receiveAllowance(mapOf(C500 to 30), periodStart)
+            val home = WalletHomeUi.from(data.wallet.state.value, AppSettings.DEFAULT, now, zone, true)
+            assertFalse(home.walletEmpty)
+        } finally {
+            driver.close()
+        }
+    }
+
+    @Test
+    fun walletTapHapticsAndPushedDestinationsReturnToHome() = runTest {
+        val driver = DriverFactory().createDriver()
+        try {
+            var taps = 0
+            val haptics = object : Haptics {
+                override fun tap() { taps++ }
+                override fun success() {}
+                override fun pickUp() {}
+            }
+            val data = RealCashData(driver, clock, SequentialIdGenerator(), EmptyCoroutineContext)
+            val app = AppState(AppEnvironment(data, haptics, clock = clock, timeZone = zone), backgroundScope)
+        assertEquals(Won(3_500), result.change)
+        assertTrue(com.jim.realcash.domain.model.SettlementFlag.MANUAL in result.settlement.flags)
+        render("q-manual-payment-result") { RealCashRoot(app) }
+    }
+
+    @Test
+    fun r_walletHomeThirtyBills() = runBlocking {
+        val data = newData().apply { wallet.receiveAllowance(mapOf(W10000 to 30), periodStart) }
+        val app = newAppState(data)
+        assertEquals(30, data.wallet.state.value.inWallet.size)
+        render("r-wallet-30bills") { RealCashRoot(app) }
+    }
+
+    @Test
+    fun h3_walletSilhouetteStaysIdenticalForEmptyThirtyBillsAndBadges() = runBlocking {
+        val emptyData = newData()
+        val emptyApp = newAppState(emptyData)
+        val thirtyData = newData().apply { wallet.receiveAllowance(mapOf(W10000 to 30), periodStart) }
+        val thirtyApp = newAppState(thirtyData)
+
+        render("h3-home-empty", scale = 1) { RealCashRoot(emptyApp) }
+        render("h3-home-30bills", scale = 1) { RealCashRoot(thirtyApp) }
+        val emptySilhouette = walletSilhouette("h3-home-empty")
+        assertTrue(emptySilhouette.size > 10_000, "the full wallet silhouette must be visible")
+        assertEquals(emptySilhouette, walletSilhouette("h3-home-30bills"), "0 and 30 bills must have the same wallet outline coordinates")
+
+        emptyData.seedPending()
+        render("h3-home-empty-badges", scale = 1) { RealCashRoot(emptyApp) }
+        assertEquals(emptySilhouette, walletSilhouette("h3-home-empty-badges"))
+        // Keep 30 bills in the wallet while showing both badges.
+        thirtyData.wallet.receiveAllowance(mapOf(W10000 to 1), periodStart)
+        thirtyData.seedHand(W10000)
+        thirtyData.seedPending()
+        assertEquals(30, thirtyData.wallet.state.value.inWallet.size)
+        render("h3-home-30bills-badges", scale = 1) { RealCashRoot(thirtyApp) }
+        assertEquals(emptySilhouette, walletSilhouette("h3-home-30bills-badges"), "badges must not move or resize the wallet")
+    }
+
+    /** The wallet is the largest connected dark region; compare actual artwork pixels, not a layout formula. */
+    private fun walletSilhouette(name: String): Set<Int> {
+        val image = ImageIO.read(File(outDir, "$name.png"))
+        assertEquals(WIDTH, image.width)
+        assertEquals(HEIGHT, image.height)
+        val visited = BooleanArray(WIDTH * HEIGHT)
+        var largest = emptySet<Int>()
+        fun dark(index: Int): Boolean {
+            val rgb = image.getRGB(index % WIDTH, index / WIDTH)
+            return ((rgb shr 16) and 255) < 120 && ((rgb shr 8) and 255) < 120 && (rgb and 255) < 120
+        }
+        for (start in visited.indices) {
+            if (visited[start]) continue
+            visited[start] = true
+            if (!dark(start)) continue
+            val region = mutableSetOf(start)
+            val queue = ArrayDeque<Int>().apply { add(start) }
+            while (queue.isNotEmpty()) {
+                val index = queue.removeFirst()
+                val x = index % WIDTH
+                val y = index / WIDTH
+                val neighbors = listOfNotNull(
+                    (index - 1).takeIf { x > 0 }, (index + 1).takeIf { x < WIDTH - 1 },
+                    (index - WIDTH).takeIf { y > 0 }, (index + WIDTH).takeIf { y < HEIGHT - 1 },
+                )
+                for (neighbor in neighbors) {
+                    if (visited[neighbor]) continue
+                    visited[neighbor] = true
+                    if (dark(neighbor)) {
+                        region.add(neighbor)
+                        queue.add(neighbor)
+                    }
+                }
+            }
+            if (region.size > largest.size) largest = region
+        }
+        return largest
+    }
+
+    @Test
+    fun s_walletHomeMenuOpen() = runBlocking {
+        val data = newData().apply { seedAllowance() }
+        val app = newAppState(data)
+        render("s-wallet-menu", interact = { scene ->
+            val menu = Offset(354f * SCALE, 32f * SCALE)
+            scene.sendPointerEvent(PointerEventType.Press, menu)
+            scene.sendPointerEvent(PointerEventType.Release, menu)
+        }) { RealCashRoot(app) }
+    }
+
+    @Test
+    fun t_walletTapAndBack() = runBlocking {
+        val data = newData().apply { seedAllowance() }
+        val app = newAppState(data)
+        render("t-wallet-open", interact = { scene ->
+            val wallet = Offset(195f * SCALE, 480f * SCALE)
+            scene.sendPointerEvent(PointerEventType.Press, wallet)
+            scene.sendPointerEvent(PointerEventType.Release, wallet)
+        }) { RealCashRoot(app) }
+        assertEquals(Screen.WalletOpen, app.current)
+        assertTrue(app.back())
+        assertEquals(Screen.WalletHome, app.current)
+        assertTrue(!app.canGoBack)
+    }
+
+    @Test
+    fun t_openWalletFourBillsAndCoins() = runBlocking {
+        val data = newData().apply { seedAllowance() }
+
+ succeeded in 36134ms:
+> Task :shared:domain:kmpPartiallyResolvedDependenciesChecker
+> Task :shared:domain:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :shared:domain:compileKotlinJvm UP-TO-DATE
+> Task :shared:domain:compileJvmMainJava NO-SOURCE
+> Task :shared:domain:jvmProcessResources NO-SOURCE
+> Task :shared:domain:processJvmMainResources SKIPPED
+> Task :shared:domain:jvmMainClasses UP-TO-DATE
+> Task :shared:domain:jvmJar UP-TO-DATE
+> Task :shared:data:kmpPartiallyResolvedDependenciesChecker
+> Task :shared:data:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :shared:data:generateCommonMainRealCashDatabaseInterface UP-TO-DATE
+> Task :shared:data:compileKotlinJvm UP-TO-DATE
+> Task :shared:data:compileJvmMainJava NO-SOURCE
+> Task :shared:data:jvmProcessResources NO-SOURCE
+> Task :shared:data:processJvmMainResources SKIPPED
+> Task :shared:data:jvmMainClasses UP-TO-DATE
+> Task :shared:data:jvmJar UP-TO-DATE
+> Task :shared:ui:kmpPartiallyResolvedDependenciesChecker
+> Task :shared:ui:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :shared:ui:convertXmlValueResourcesForCommonMain NO-SOURCE
+> Task :shared:ui:copyNonXmlValueResourcesForCommonMain UP-TO-DATE
+> Task :shared:ui:prepareComposeResourcesTaskForCommonMain UP-TO-DATE
+> Task :shared:ui:generateResourceAccessorsForCommonMain UP-TO-DATE
+> Task :shared:ui:convertXmlValueResourcesForJvmMain NO-SOURCE
+> Task :shared:ui:copyNonXmlValueResourcesForJvmMain NO-SOURCE
+> Task :shared:ui:prepareComposeResourcesTaskForJvmMain NO-SOURCE
+> Task :shared:ui:generateResourceAccessorsForJvmMain NO-SOURCE
+> Task :shared:ui:generateActualResourceCollectorsForJvmMain UP-TO-DATE
+> Task :shared:ui:generateComposeResClass UP-TO-DATE
+> Task :shared:ui:generateExpectResourceCollectorsForCommonMain UP-TO-DATE
+> Task :shared:ui:compileKotlinJvm UP-TO-DATE
+> Task :shared:ui:compileJvmMainJava NO-SOURCE
+> Task :shared:ui:convertXmlValueResourcesForCommonTest NO-SOURCE
+> Task :shared:ui:copyNonXmlValueResourcesForCommonTest NO-SOURCE
+> Task :shared:ui:prepareComposeResourcesTaskForCommonTest NO-SOURCE
+> Task :shared:ui:generateResourceAccessorsForCommonTest NO-SOURCE
+> Task :shared:ui:convertXmlValueResourcesForJvmTest NO-SOURCE
+> Task :shared:ui:copyNonXmlValueResourcesForJvmTest NO-SOURCE
+> Task :shared:ui:prepareComposeResourcesTaskForJvmTest NO-SOURCE
+> Task :shared:ui:generateResourceAccessorsForJvmTest NO-SOURCE
+> Task :shared:ui:assembleJvmMainResources UP-TO-DATE
+> Task :shared:ui:jvmProcessResources UP-TO-DATE
+> Task :shared:ui:processJvmMainResources SKIPPED
+> Task :shared:ui:jvmMainClasses UP-TO-DATE
+> Task :shared:ui:jvmJar UP-TO-DATE
+> Task :shared:ui:assembleJvmTestResources UP-TO-DATE
+> Task :shared:ui:jvmTestProcessResources UP-TO-DATE
+> Task :shared:ui:processJvmTestResources SKIPPED
+> Task :shared:ui:compileTestKotlinJvm
+> Task :shared:ui:compileJvmTestJava NO-SOURCE
+> Task :shared:ui:jvmTestClasses
+> Task :shared:ui:jvmTest
+
+BUILD SUCCESSFUL in 36s
+22 actionable tasks: 5 executed, 17 up-to-date
+
+codex
+스크린샷에서 새 지갑이 잘리지 않고 표시되는 것을 확인했습니다. 지갑 윤곽의 픽셀 좌표는 0장·30장과 배지 유무에 관계없이 동일하다는 검사도 통과했습니다. 버튼 탭 좌표를 수정한 뒤 전체 JVM 테스트를 다시 실행 중입니다.
+exec
+/bin/zsh -lc "python3 - <<'PY'
+from pathlib import Path
+import shutil,struct,xml.etree.ElementTree as ET
+base=Path('shared/ui')
+(base/'screenshots').mkdir(exist_ok=True)
+for name in ['h3-home-empty.png','h3-home-30bills.png']:
+ source=base/'build/screenshots'/name
+ dest=base/'screenshots'/name
+ shutil.copyfile(source,dest)
+ assert source.read_bytes() == dest.read_bytes()
+ assert struct.unpack('>II',dest.read_bytes()[16:24]) == (390,844)
+ print(f'{dest}: 390×844, original copy, {dest.stat().st_size} bytes')
+reports=[ET.parse(p).getroot() for p in (base/'build/test-results/jvmTest').glob('TEST-*.xml')]
+print('JVM tests:',sum(int(r.attrib.get('tests',0)) for r in reports),'failures:',sum(int(r.attrib.get('failures',0)) for r in reports),'errors:',sum(int(r.attrib.get('errors',0)) for r in reports))
+PY" in /Users/jeonbyeongseon/realcash-worker/scripts/log/ui-worktree
+ succeeded in 0ms:
+shared/ui/screenshots/h3-home-empty.png: 390×844, original copy, 196104 bytes
+shared/ui/screenshots/h3-home-30bills.png: 390×844, original copy, 198157 bytes
+JVM tests: 133 failures: 0 errors: 0
+
+codex
+1. 변경 파일: `ClosedWallet.kt`, `WalletHomeScreen.kt`, `WalletHomeModel.kt`, `WalletHomeModelTest.kt`, `WalletNavigationTest.kt`, `ScreenshotTest.kt` 및 검수용 PNG 2장. 모두 `shared/ui/` 안입니다.
+
+2. 완료 기준 충족:
+   - 두께 레이어·장수 계산 제거.
+   - 새 그림을 폭 70%, 비율 1024:945로 전체 표시.
+   - 0장·30장 및 배지 유무에 따른 윤곽 좌표 동일성 테스트 통과.
+   - 탭 전환은 4% 확대와 위로 이동하는 애니메이션으로 유지.
+   - 390×844, 1x 검수본 저장: [빈 지갑](/Users/jeonbyeongseon/realcash-worker/scripts/log/ui-worktree/shared/ui/screenshots/h3-home-empty.png), [30장 지갑](/Users/jeonbyeongseon/realcash-worker/scripts/log/ui-worktree/shared/ui/screenshots/h3-home-30bills.png).
+
+3. JDK 21로 `./gradlew :shared:ui:jvmTest` 실행: **133개 통과, 실패 0개**.
+
+4. 남은 작업 및 도메인·이미지 요청 없음. 커밋은 워커에 맡겼습니다.
+tokens used
+73,531
+1. 변경 파일: `ClosedWallet.kt`, `WalletHomeScreen.kt`, `WalletHomeModel.kt`, `WalletHomeModelTest.kt`, `WalletNavigationTest.kt`, `ScreenshotTest.kt` 및 검수용 PNG 2장. 모두 `shared/ui/` 안입니다.
+
+2. 완료 기준 충족:
+   - 두께 레이어·장수 계산 제거.
+   - 새 그림을 폭 70%, 비율 1024:945로 전체 표시.
+   - 0장·30장 및 배지 유무에 따른 윤곽 좌표 동일성 테스트 통과.
+   - 탭 전환은 4% 확대와 위로 이동하는 애니메이션으로 유지.
+   - 390×844, 1x 검수본 저장: [빈 지갑](/Users/jeonbyeongseon/realcash-worker/scripts/log/ui-worktree/shared/ui/screenshots/h3-home-empty.png), [30장 지갑](/Users/jeonbyeongseon/realcash-worker/scripts/log/ui-worktree/shared/ui/screenshots/h3-home-30bills.png).
+
+3. JDK 21로 `./gradlew :shared:ui:jvmTest` 실행: **133개 통과, 실패 0개**.
+
+4. 남은 작업 및 도메인·이미지 요청 없음. 커밋은 워커에 맡겼습니다.

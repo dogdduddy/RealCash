@@ -1,0 +1,11 @@
+874077fbe0d795ffdd40d66843b1f88d8ab93ec5 [codex-ui] ui.home-wallet-v3: 홈 닫힌 지갑을 새 그림으로 바꾸고 두께 레이어 제거
+
+ shared/ui/screenshots/h3-home-30bills.png          | Bin 0 -> 198157 bytes
+ shared/ui/screenshots/h3-home-empty.png            | Bin 0 -> 196104 bytes
+ .../com/jim/realcash/ui/components/ClosedWallet.kt |  42 ++++--------
+ .../com/jim/realcash/ui/wallet/WalletHomeModel.kt  |   5 --
+ .../com/jim/realcash/ui/wallet/WalletHomeScreen.kt |  48 +++++++-------
+ .../jim/realcash/ui/screenshot/ScreenshotTest.kt   |  73 +++++++++++++++++++--
+ .../jim/realcash/ui/wallet/WalletHomeModelTest.kt  |  13 +---
+ .../jim/realcash/ui/wallet/WalletNavigationTest.kt |   2 +-
+ 8 files changed, 110 insertions(+), 73 deletions(-)
