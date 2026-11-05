@@ -18,7 +18,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-internal data class CashHit(val unit: CashUnit, val fromTray: Boolean, val hit: WalletRect, val face: WalletRect)
+internal data class CashHit(val unit: CashUnit, val fromTray: Boolean, val hit: WalletRect, val face: WalletRect, val lens: WalletRect? = null) {
+    fun contains(point: Offset) = hit.contains(point) && (lens == null || WalletOpening.contains(lens, point))
+}
 
 @Stable
 internal class BillSway(private val scope: CoroutineScope) {
@@ -62,7 +64,7 @@ internal fun Modifier.walletGestures(
         // Saving blocks only new gestures; a gesture already in progress keeps its owner.
         if (!enabled.value) return@awaitEachGesture
         val origin = down.position / density
-        val hit = hits.value.lastOrNull { it.hit.contains(origin) }
+        val hit = hits.value.lastOrNull { it.contains(origin) }
         if (physics.picked != null || (hit == null && !pocket.value.contains(origin))) return@awaitEachGesture
         var last = down
         var released = false
@@ -117,7 +119,7 @@ internal fun Modifier.walletGestures(
                     // Every exposed paper strip gets one tick per pass, even with skipped pointer samples.
                     currentSway.forEachIndexed { index, (rect, animation) ->
                         val right = minOf(rect.right, currentSway.getOrNull(index + 1)?.first?.left ?: rect.right)
-                        val strip = rect.copy(width = (right - rect.left).coerceAtLeast(0f), height = (currentPocket.top - rect.top).coerceAtLeast(0f))
+                        val strip = rect.copy(width = (right - rect.left).coerceAtLeast(0f))
                         if (animation !in ticked && SwayState.crosses(previous, point, strip)) { haptics.tick(); ticked += animation }
                         if (!strip.contains(point) && !SwayState.crosses(previous, point, strip)) ticked -= animation
                     }

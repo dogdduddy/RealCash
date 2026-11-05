@@ -51,7 +51,7 @@ data class SwayState(val rotation: Float, val offsetDp: Float, val delayMillis: 
 fun WalletRect.contains(point: Offset) = point.x >= left && point.x <= right && point.y >= top && point.y <= bottom
 val WalletRect.center get() = Offset(left + width / 2f, top + height / 2f)
 
-enum class DropDestination { TRAY, WALLET, SOURCE }
+enum class DropDestination { TRAY, WALLET, FLOOR, SOURCE }
 
 /** Immutable pickup metadata and pure drop decisions. No repository or animation clock is needed to test it. */
 data class PickState(val unit: CashUnit, val fromTray: Boolean, val source: WalletRect, val start: Offset) {

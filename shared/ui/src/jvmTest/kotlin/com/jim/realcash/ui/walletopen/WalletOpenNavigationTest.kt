@@ -66,7 +66,7 @@ class WalletOpenNavigationTest {
                 // A short tap and a leather long press cannot take paper out.
                 tap(point)
                 assertEquals(Won.ZERO, app.walletOpen.ui.value.handTotal)
-                drag(Offset(group.left + 1.5f, layout.pocket.top + 20f), layout.trayInner.center, expectPick = false)
+                drag(Offset(layout.wallet.left + 2f, layout.wallet.center.y), layout.trayInner.center, expectPick = false)
                 assertEquals(Won.ZERO, app.walletOpen.ui.value.handTotal)
                 drag(point, layout.trayInner.center)
                 assertEquals(Won(10_000), app.walletOpen.ui.value.handTotal)

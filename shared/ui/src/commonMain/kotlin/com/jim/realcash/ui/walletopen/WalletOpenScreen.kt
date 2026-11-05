@@ -7,10 +7,12 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
@@ -19,10 +21,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.jim.realcash.domain.model.CashUnit
 import com.jim.realcash.domain.model.CashUnitId
 import com.jim.realcash.domain.model.Denomination
@@ -33,7 +33,6 @@ import com.jim.realcash.ui.format.faceLabel
 import com.jim.realcash.ui.format.formatted
 import com.jim.realcash.ui.money.BillFace
 import com.jim.realcash.ui.money.CoinFace
-import com.jim.realcash.ui.money.CountBadge
 import com.jim.realcash.ui.money.LocalMoneyArt
 import com.jim.realcash.ui.money.relativeSize
 import com.jim.realcash.ui.resources.Res
@@ -93,9 +92,11 @@ fun WalletOpenContent(
         val scatter = remember(seed, layout, allCoins) {
             CoinScatter.place(seed, allCoins.map { 34f * it.denomination.relativeSize }, layout.coins)
         }
-        val coinSlots = scatter.associate { coin ->
+        val floorCoins = remember(seed, layout) { mutableStateMapOf<CashUnitId, WalletRect>() }
+        val initialCoinSlots = scatter.associate { coin ->
             allCoins[coin.index].id to WalletRect(coin.x - coin.diameter / 2f, coin.y - coin.diameter / 2f, coin.diameter, coin.diameter)
         }
+        val coinSlots = initialCoinSlots + floorCoins
         // Only positions, never ownership. Discarded on the next screen visit.
         val trayCoins = remember(seed) { mutableStateMapOf<CashUnitId, Offset>() }
         val traySlots = traySlots(ui.inHand, layout.trayInner, trayCoins)
@@ -105,7 +106,7 @@ fun WalletOpenContent(
         val hits = buildList {
             groups.forEachIndexed { index, group ->
                 add(CashHit(bills.getValue(group.denomination).last(), false, pocketBillHitBounds(groups, index),
-                    WalletRect(group.frontLeft, group.top, group.billWidth, group.billHeight)))
+                    WalletRect(group.frontLeft, group.top, group.billWidth, group.billHeight), wallet))
             }
             coins.forEach { coin -> coinSlots[coin.id]?.let { add(CashHit(coin, false, it, it)) } }
             ui.inHand.forEach { unit -> traySlots[unit.id]?.let { add(CashHit(unit, true, it, it)) } }
@@ -113,7 +114,7 @@ fun WalletOpenContent(
         val sway = groups.flatMap { group ->
             (0 until group.visibleCount).map { i ->
                 val animation = key(group.denomination, i) { remember { BillSway(scope) } }
-                WalletRect(group.left + i * group.fanStep, group.top, group.billWidth, group.billHeight) to animation
+                WalletRect(group.left + i * group.fanStep, group.top, group.exposedWidth, group.exposedHeight) to animation
             }
         }
         val currentEnabled = rememberUpdatedState(!submitting)
@@ -123,10 +124,24 @@ fun WalletOpenContent(
         val release by rememberUpdatedState<(Boolean) -> Unit>({ cancelled ->
             val pick = physics.picked
             if (pick != null && !physics.settling) {
-                val walletDrop = wallet.copy(width = maxOf(wallet.right, layout.coins.right) - wallet.left)
-                val destination = pick.destination(physics.position, layout.trayInner, walletDrop, cancelled)
+                val floorTarget = if (pick.isBill || cancelled) null else floorCoinTarget(
+                    physics.position, pick.faceWidth, WalletRect(0f, 56f, maxWidth.value, maxHeight.value - 56f),
+                    wallet, layout.tray, coinSlots.filterKeys { id -> id != pick.unit.id && coins.any { it.id == id } }.values.toList(),
+                )
+                val destination = when {
+                    cancelled -> DropDestination.SOURCE
+                    !pick.isBill && layout.trayInner.contains(physics.position) -> DropDestination.TRAY
+                    !pick.isBill && floorTarget != null -> DropDestination.FLOOR
+                    !pick.isBill -> DropDestination.SOURCE
+                    else -> pick.destination(physics.position, layout.trayInner, wallet)
+                }
                 val target = when (destination) {
                     DropDestination.SOURCE -> pick.source
+                    DropDestination.FLOOR -> {
+                        trayCoins.remove(pick.unit.id)
+                        floorCoins[pick.unit.id] = checkNotNull(floorTarget)
+                        floorTarget
+                    }
                     DropDestination.TRAY -> {
                         if (!pick.isBill) trayCoins[pick.unit.id] = physics.position
                         val units = if (pick.fromTray) ui.inHand else ui.inHand + pick.unit
@@ -143,14 +158,15 @@ fun WalletOpenContent(
                 }
                 if (destination == DropDestination.SOURCE) haptics.tap() else {
                     haptics.success()
-                    onDrop(pick.unit.id, destination == DropDestination.TRAY)
+                    if (destination != DropDestination.FLOOR || pick.fromTray)
+                        onDrop(pick.unit.id, destination == DropDestination.TRAY)
                 }
                 physics.settle(pick.flight(destination, target))
             }
         })
         // Full-screen gesture surface has no scrolling. Controls remain ordinary buttons above it.
         Box(Modifier.fillMaxSize().walletGestures(currentEnabled, density, currentHits, currentPocket, currentSway, physics, haptics) { release(it) }) {
-            Image(walletPainter, "열린 지갑", Modifier.rect(wallet), contentScale = ContentScale.FillBounds)
+            Image(walletPainter, "열린 지갑", Modifier.rect(wallet), contentScale = ContentScale.Fit)
             Image(painterResource(Res.drawable.tray), "꺼낸 돈을 두는 접시",
                 Modifier.rect(layout.tray).graphicsLayer { alpha = if (overTray) 1f else 0.94f }, contentScale = ContentScale.FillBounds)
             ui.inHand.forEach { unit ->
@@ -164,41 +180,63 @@ fun WalletOpenContent(
                 if (overTray) "여기에 놓으세요" else "돈을 길게 눌러 접시에 놓으세요",
                 style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.85f), textAlign = TextAlign.Center,
                 modifier = Modifier.rect(layout.trayInner).padding(top = (layout.trayInner.height / 2f - 8f).dp))
-            var index = 0
-            groups.forEach { group ->
-                val painter = art.painter(group.denomination)
-                for (i in 0 until group.visibleCount) {
-                    val animation = sway[index++].second
-                    val hidden = i == group.visibleCount - 1 && bills.getValue(group.denomination).last().id == pickedId
-                    Box(Modifier.offset((group.left + i * group.fanStep).dp, group.top.dp).size(group.billWidth.dp, group.billHeight.dp)
-                        .graphicsLayer {
-                            rotationZ = animation.angle.value
-                            translationX = animation.x.value.dp.toPx()
-                            alpha = if (hidden) 0f else 1f
-                        }, contentAlignment = Alignment.Center) {
-                        BillFace(group.denomination, Modifier.requiredSize(group.billHeight.dp, group.billWidth.dp)
-                            .graphicsLayer { rotationZ = 90f }
-                            .drawWithContent { drawContent(); drawRect(Color.Black.copy(alpha = ((group.visibleCount - 1 - i) * 0.035f).coerceAtMost(0.28f))) }, painter)
+            // Clip paper to the reviewed lens; the wallet artwork itself is always drawn whole.
+            Box(Modifier.fillMaxSize().drawWithContent {
+                val l = wallet.left.dp.toPx()
+                val t = wallet.top.dp.toPx()
+                val w = wallet.width.dp.toPx()
+                val h = wallet.height.dp.toPx()
+                val midX = (WalletOpening.LEFT + WalletOpening.RIGHT) / 2f
+                val lens = Path().apply {
+                    moveTo(l + w * midX, t + h * WalletOpening.TOP)
+                    quadraticTo(l + w * (2f * WalletOpening.RIGHT - midX), t + h * (WalletOpening.TOP + WalletOpening.BOTTOM) / 2f,
+                        l + w * midX, t + h * WalletOpening.BOTTOM)
+                    quadraticTo(l + w * (2f * WalletOpening.LEFT - midX), t + h * (WalletOpening.TOP + WalletOpening.BOTTOM) / 2f,
+                        l + w * midX, t + h * WalletOpening.TOP)
+                    close()
+                }
+                clipPath(lens) { this@drawWithContent.drawContent() }
+            }) {
+                var index = 0
+                groups.forEach { group ->
+                    val painter = art.painter(group.denomination)
+                    for (i in 0 until group.visibleCount) {
+                        val animation = sway[index++].second
+                        val hidden = i == group.visibleCount - 1 && bills.getValue(group.denomination).last().id == pickedId
+                        BillFace(group.denomination,
+                            Modifier.offset((group.left + i * group.fanStep + group.exposedWidth).dp, group.top.dp)
+                                .size(group.billHeight.dp, group.billWidth.dp)
+                                .graphicsLayer {
+                                    transformOrigin = TransformOrigin(0f, 0f)
+                                    rotationZ = 90f + animation.angle.value
+                                    cameraDistance = 10_000.dp.toPx()
+                                    translationX = animation.x.value.dp.toPx()
+                                    alpha = if (hidden) 0f else 1f
+                                }.graphicsLayer {
+                                    transformOrigin = TransformOrigin(0f, 0f)
+                                    rotationX = WalletOpening.ROTATION_X
+                                    cameraDistance = 10_000.dp.toPx()
+                                }.drawWithContent {
+                                    clipRect(bottom = minOf(size.height * WalletOpening.FACE_FRACTION, group.exposedWidth.dp.toPx() * 2f)) {
+                                        this@drawWithContent.drawContent()
+                                        drawRect(Color.Black.copy(alpha = ((group.visibleCount - 1 - i) * 0.035f).coerceAtMost(0.28f)))
+                                    }
+                                }, painter)
                     }
                 }
             }
-            groups.forEach { group ->
-                Text(group.denomination.amount.formatted(), color = Color(0xFF302A22), fontSize = 9.sp, lineHeight = 10.sp,
-                    fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.offset((group.frontLeft + 6f).dp, group.top.dp))
-            }
-            Image(walletPainter, null, Modifier.rect(wallet).drawWithContent {
-                clipRect(top = size.height * 0.405f) { this@drawWithContent.drawContent() }
-            }, contentScale = ContentScale.FillBounds)
             groups.forEachIndexed { i, group ->
                 Box(Modifier.rect(pocketBillHitBounds(groups, i)).cashAction("${group.denomination.faceLabel}원 손에 들기", !submitting) {
                     onToggle(bills.getValue(group.denomination).last().id)
                 })
-                if (group.count > group.visibleCount) CountBadge(group.count, Modifier.offset(group.left.dp, (group.top - 22f).dp))
             }
-            scatter.forEach { coin ->
-                val unit = allCoins[coin.index]
+            allCoins.forEachIndexed { index, unit ->
+                val rect = coinSlots[unit.id] ?: return@forEachIndexed
+                val coin = scatter.firstOrNull { it.index == index }
+                    ?: ScatteredCoin(index, rect.center.x, rect.center.y, rect.width, 0f)
                 key(unit.id) {
-                    FallingCoin(unit, coin, unit !in coins || unit.id == pickedId, !submitting && unit in coins) { onToggle(unit.id) }
+                    FallingCoin(unit, coin.copy(x = rect.center.x, y = rect.center.y),
+                        unit !in coins || unit.id == pickedId, !submitting && unit in coins) { onToggle(unit.id) }
                 }
             }
         }
