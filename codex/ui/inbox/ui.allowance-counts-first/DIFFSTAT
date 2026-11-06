@@ -1,0 +1,11 @@
+e05ca526984b10758a2bfc72c0174e09e4bc0792 [codex-ui] ui.allowance-counts-first: 용돈 받기 — 스텝퍼로 바꾼 개수가 곧 받을 금액이 되게
+
+ shared/ui/screenshots/a2-allowance-edited.png      | Bin 0 -> 72889 bytes
+ .../kotlin/com/jim/realcash/ui/Strings.kt          |   1 +
+ .../jim/realcash/ui/allowance/AllowanceDraft.kt    |  19 +++--
+ .../realcash/ui/allowance/ReceiveAllowanceModel.kt |   5 +-
+ .../ui/allowance/ReceiveAllowanceScreen.kt         |  30 ++-----
+ .../realcash/ui/allowance/AllowanceDraftTest.kt    |  81 ++++++++++++++----
+ .../ui/allowance/ReceiveAllowanceModelTest.kt      |  95 +++++++++++++++++++++
+ .../jim/realcash/ui/screenshot/ScreenshotTest.kt   |  18 ++++
+ 8 files changed, 198 insertions(+), 51 deletions(-)

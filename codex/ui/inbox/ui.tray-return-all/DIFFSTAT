@@ -1,0 +1,8 @@
+d1fae94635e3ed3957eafcb938e87d7a76fae545 [codex-ui] ui.tray-return-all: 접시의 돈을 한 번에 지갑으로 되돌리는 버튼
+
+ shared/ui/screenshots/t1-tray-return.png           | Bin 0 -> 528125 bytes
+ .../jim/realcash/ui/walletopen/WalletOpenModel.kt  |   9 ++
+ .../jim/realcash/ui/walletopen/WalletOpenScreen.kt |  56 +++++++--
+ .../realcash/ui/walletopen/WalletOpenModelTest.kt  |  79 +++++++++++++
+ .../ui/walletopen/WalletOpenReturnAllTest.kt       | 129 +++++++++++++++++++++
+ 5 files changed, 262 insertions(+), 11 deletions(-)
