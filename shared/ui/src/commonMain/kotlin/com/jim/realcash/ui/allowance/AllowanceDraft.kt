@@ -11,7 +11,7 @@ import com.jim.realcash.ui.format.AmountInput
  * Editable state of the allowance screen (pure; unit-tested).
  *
  * Typing an amount or picking a style replaces [counts] with [SplitSuggester.suggest]; the steppers then edit the
- * counts freely ([edited] = true). The split is valid only when [SplitSuggester.validate] holds for a positive amount.
+ * counts freely and update [digits] to their sum ([edited] = true). A positive, non-negative split is valid.
  */
 data class AllowanceDraft(
     /** The amount field's digits (no separators). */
@@ -23,7 +23,7 @@ data class AllowanceDraft(
     /** True once a stepper changed the suggested counts. */
     val edited: Boolean = false,
 ) {
-    /** The typed amount, or `null` when the field is empty. */
+    /** The typed amount or edited counts' sum, or `null` when the field is empty. */
     val amount: Won? get() = AmountInput.parse(digits)
 
     /** Sum of [counts]. */
@@ -35,12 +35,12 @@ data class AllowanceDraft(
     /** True when the split can be put into the wallet. */
     val isValid: Boolean
         get() {
-            val a = amount ?: return false
-            return a.value > 0 && SplitSuggester.validate(a, counts)
+            val total = sum
+            return total.value > 0 && SplitSuggester.validate(total, counts)
         }
 
-    /** True when the sum line should be shown as an error (an amount is typed but the split does not match it). */
-    val showSumError: Boolean get() = amount != null && !isValid
+    /** True only when a typed amount cannot be represented in cash and has no suggestion. */
+    val showSumError: Boolean get() = !edited && amountNotCash && counts.isEmpty()
 
     /** Count of [denomination]. */
     fun countOf(denomination: Denomination): Int = counts[denomination] ?: 0
@@ -60,14 +60,17 @@ data class AllowanceDraft(
 
     /** One more unit of [denomination]. */
     fun increment(denomination: Denomination): AllowanceDraft =
-        copy(counts = counts + (denomination to countOf(denomination) + 1), edited = true)
+        withEditedCounts(counts + (denomination to countOf(denomination) + 1))
 
     /** One unit less of [denomination] (never below zero). */
     fun decrement(denomination: Denomination): AllowanceDraft {
         val current = countOf(denomination)
         if (current == 0) return this
-        return copy(counts = counts + (denomination to current - 1), edited = true)
+        return withEditedCounts(counts + (denomination to current - 1))
     }
+
+    private fun withEditedCounts(counts: Map<Denomination, Int>): AllowanceDraft =
+        copy(digits = counts.total().value.toString(), counts = counts, edited = true)
 
     private companion object {
         fun suggestion(amount: Won?, style: SplitStyle): Map<Denomination, Int> =

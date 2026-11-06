@@ -132,6 +132,24 @@ class ScreenshotTest {
     }
 
     @Test
+    fun a2_receiveAllowanceEdited() = runBlocking {
+        val app = newAppState(newData())
+        app.navigate(Screen.ReceiveAllowance)
+        app.receiveAllowance.onAmountChange("30000")
+        app.receiveAllowance.increment(W10000)
+        val draft = app.receiveAllowance.draft.value
+        assertEquals("40000", draft.digits)
+        assertEquals(mapOf(W10000 to 4), draft.split())
+        assertTrue(draft.edited)
+        assertTrue(draft.isValid)
+        assertTrue(!draft.showSumError)
+        render("a2-allowance-edited", scale = 1) { RealCashRoot(app) }
+        val screenshot = ImageIO.read(File(outDir, "a2-allowance-edited.png"))
+        assertEquals(WIDTH, screenshot.width)
+        assertEquals(HEIGHT, screenshot.height)
+    }
+
+    @Test
     fun e_confirmPaymentsSheet() = runBlocking {
         val data = newData().apply {
             seedAllowance()

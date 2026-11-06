@@ -64,6 +64,7 @@ object Strings {
     const val SPLIT_TITLE = "권종 조합"
     const val PUT_IN_WALLET = "지갑에 넣기"
     const val AMOUNT_NOT_CASH = "10원 단위로 입력해 주세요"
+    fun splitSum(sum: String): String = "합계 $sum"
     fun splitSum(sum: String, target: String): String = "합계 $sum / $target"
     fun splitDiff(diff: String, over: Boolean): String = if (over) "$diff 많아요" else "$diff 모자라요"
     fun allowanceReceived(amount: String): String = "${amount}을 지갑에 넣었어요"
