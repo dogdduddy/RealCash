@@ -1,0 +1,1 @@
+PASS merged d46f90c 2026-11-06 범위 shared/ui 만(검수용 a2 사본은 머지 뒤 제거), 16 과 합친 트리 jvmTest 통과. 스텝퍼가 digits 를 합으로 갱신(edited), 타이핑은 제안 복귀, isValid 는 합>0, showSumError 는 현금 불가 입력에만, 합계 줄 보통 색, submit 은 split 그대로·메시지는 합. 도메인 미변경. 스크린샷 a2(40,000·버튼 활성) 확인.

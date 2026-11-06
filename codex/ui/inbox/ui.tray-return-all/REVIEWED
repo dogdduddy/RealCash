@@ -1,0 +1,1 @@
+PASS merged 784fe99 2026-11-06 범위 shared/ui 만(검수용 t1 사본은 머지 뒤 제거), 17 과 합친 트리 jvmTest 통과. returnAll 은 setOnTray(false) 경로(디바운스·queuedChoices 유지)+trayOrder 비움+success 햅틱, "모두 넣기" 버튼은 접시에 돈 있을 때만·집는 중/저장 중 비활성, 사라지는 전환은 Animatable 하나를 graphicsLayer 에서 읽어 30ms 간격 페이드+24dp 이동 뒤 반환. 스크린샷 t1 확인.
