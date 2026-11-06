@@ -26,7 +26,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.jim.realcash.domain.calc.SplitStyle
 import com.jim.realcash.domain.model.Denomination
-import com.jim.realcash.domain.model.Won
 import com.jim.realcash.ui.Strings
 import com.jim.realcash.ui.components.DenominationStepperRow
 import com.jim.realcash.ui.components.ScreenHeader
@@ -34,12 +33,11 @@ import com.jim.realcash.ui.components.SectionLabel
 import com.jim.realcash.ui.format.ThousandsSeparatorTransformation
 import com.jim.realcash.ui.format.formatted
 import com.jim.realcash.ui.format.shortLabel
-import kotlin.math.abs
 import kotlinx.datetime.LocalDate
 
 /**
  * Receive allowance (screen 2): amount field, two suggestion chips, a per-denomination stepper list, a live sum
- * line (red while invalid) and "지갑에 넣기".
+ * line and "지갑에 넣기".
  */
 @Composable
 fun ReceiveAllowanceScreen(model: ReceiveAllowanceModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
@@ -87,8 +85,8 @@ fun ReceiveAllowanceContent(
                 placeholder = { Text(Strings.ALLOWANCE_AMOUNT_HINT) },
                 prefix = { Text("₩") },
                 singleLine = true,
-                isError = draft.amountNotCash,
-                supportingText = if (draft.amountNotCash) ({ Text(Strings.AMOUNT_NOT_CASH) }) else null,
+                isError = draft.showSumError,
+                supportingText = if (draft.showSumError) ({ Text(Strings.AMOUNT_NOT_CASH) }) else null,
                 visualTransformation = ThousandsSeparatorTransformation,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 textStyle = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
@@ -132,21 +130,9 @@ private fun StyleChip(label: String, style: SplitStyle, draft: AllowanceDraft, o
 
 @Composable
 private fun SumLine(draft: AllowanceDraft) {
-    val target = draft.amount ?: Won.ZERO
-    val color = if (draft.showSumError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-    Column {
-        Text(
-            Strings.splitSum(draft.sum.formatted(), target.formatted()),
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-            color = color,
-        )
-        if (draft.showSumError && !draft.amountNotCash && draft.sum != target) {
-            val diff = draft.sum - target
-            Text(
-                Strings.splitDiff(Won(abs(diff.value)).formatted(), over = diff.value > 0),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
-            )
-        }
-    }
+    Text(
+        Strings.splitSum(draft.sum.formatted()),
+        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+        color = MaterialTheme.colorScheme.onSurface,
+    )
 }

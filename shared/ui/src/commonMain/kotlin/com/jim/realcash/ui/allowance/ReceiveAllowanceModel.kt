@@ -68,15 +68,14 @@ class ReceiveAllowanceModel(
     /** Stores the allowance ("지갑에 넣기") if the draft is valid, then calls `onDone`. */
     fun submit() {
         val d = _draft.value
-        val amount = d.amount
-        if (!d.isValid || amount == null || _submitting.value) return
+        if (!d.isValid || _submitting.value) return
         _submitting.value = true
         scope.launchCatching(env.messages) {
             try {
                 val policy = env.data.settings.load().budgetPeriodPolicy
                 env.data.wallet.receiveAllowance(d.split(), periodStartFor(policy))
                 env.haptics.success()
-                env.messages.show(Strings.allowanceReceived(amount.formatted()))
+                env.messages.show(Strings.allowanceReceived(d.sum.formatted()))
                 onDone()
             } finally {
                 _submitting.value = false
