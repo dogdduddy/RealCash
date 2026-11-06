@@ -1,8 +1,10 @@
 package com.jim.realcash.ui.walletopen
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -46,7 +48,7 @@ fun WalletOpenScreen(model: WalletOpenModel, onBack: () -> Unit, onManualPayment
     val submitting by model.submitting.collectAsState()
     val paymentInfo by model.paymentInfoOpen.collectAsState()
     WalletOpenContent(ui, model.seed, submitting, model::toggle, onBack, model::showPaymentInfo,
-        modifier, model.physics, model.haptics, model::setOnTray)
+        modifier, model.physics, model.haptics, model::setOnTray, model::returnAll)
     if (paymentInfo) {
         AlertDialog(
             onDismissRequest = model::closePaymentInfo,
@@ -72,9 +74,14 @@ fun WalletOpenContent(
     physics: WalletOpenPhysics = remember { WalletOpenPhysics() },
     haptics: Haptics = Haptics.None,
     onDrop: (CashUnitId, Boolean) -> Unit = { id, _ -> onToggle(id) },
+    onReturnAll: () -> Unit = { ui.inHand.forEach { onDrop(it.id, false) }; haptics.success() },
 ) {
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current.density
+    var returning by remember(seed) { mutableStateOf(false) }
+    // One frame-clock value for the whole tray, read only by graphicsLayer below.
+    val returnElapsed = remember(seed) { Animatable(0f) }
+    val interactionsEnabled = !submitting && !returning
     BoxWithConstraints(modifier.fillMaxSize()) {
         val layout = remember(maxWidth, maxHeight) { WalletOpenLayout.calculate(maxWidth.value, maxHeight.value) }
         SideEffect { physics.tray = layout.trayInner }
@@ -98,6 +105,21 @@ fun WalletOpenContent(
         val coinSlots = initialCoinSlots + floorCoins
         // Only positions, never ownership. Discarded on the next screen visit.
         val trayCoins = remember(seed) { mutableStateMapOf<CashUnitId, Offset>() }
+        LaunchedEffect(ui.inHand.isEmpty()) {
+            if (ui.inHand.isEmpty()) {
+                trayCoins.clear()
+                returning = false
+            }
+        }
+        LaunchedEffect(returning) {
+            if (returning) {
+                returnElapsed.snapTo(0f)
+                val duration = 200 + (ui.inHand.size - 1).coerceAtLeast(0) * 30
+                returnElapsed.animateTo(duration.toFloat(), tween(duration, easing = LinearEasing))
+                trayCoins.clear()
+                onReturnAll()
+            }
+        }
         val traySlots = traySlots(ui.inHand, layout.trayInner, trayCoins)
         val picked = physics.picked
         val pickedId = picked?.unit?.id // start/end only, not per-pointer coordinates
@@ -120,7 +142,7 @@ fun WalletOpenContent(
         val sway = visiblePaperBounds(groups).flatMap { (denomination, i, pieces) ->
             pieces.map { it to paperAnimations.getValue(denomination to i) }
         }
-        val currentEnabled = rememberUpdatedState(!submitting)
+        val currentEnabled = rememberUpdatedState(interactionsEnabled)
         val currentHits = rememberUpdatedState(hits)
         val currentPocket = rememberUpdatedState(layout.pocket)
         val currentSway = rememberUpdatedState(sway)
@@ -172,11 +194,17 @@ fun WalletOpenContent(
             Image(walletPainter, "열린 지갑", Modifier.rect(wallet), contentScale = ContentScale.Fit)
             Image(painterResource(Res.drawable.tray), "꺼낸 돈을 두는 접시",
                 Modifier.rect(layout.tray).graphicsLayer { alpha = if (overTray) 1f else 0.94f }, contentScale = ContentScale.FillBounds)
-            ui.inHand.forEach { unit ->
+            ui.inHand.forEachIndexed { index, unit ->
                 val rect = traySlots.getValue(unit.id)
+                val towardWallet = wallet.center - rect.center
+                val returnDirection = towardWallet / towardWallet.getDistance().coerceAtLeast(1f)
                 key(unit.id) {
-                    Money(unit, Modifier.rect(rect).graphicsLayer { alpha = if (unit.id == pickedId) 0f else 1f }
-                        .cashAction("${unit.denomination.faceLabel}원 지갑에 돌려놓기", !submitting) { onToggle(unit.id) })
+                    Money(unit, Modifier.rect(rect).graphicsLayer {
+                        val progress = if (returning) ((returnElapsed.value - index * 30f) / 200f).coerceIn(0f, 1f) else 0f
+                        alpha = if (unit.id == pickedId) 0f else 1f - progress
+                        translationX = (returnDirection.x * 24f * progress).dp.toPx()
+                        translationY = (returnDirection.y * 24f * progress).dp.toPx()
+                    }.cashAction("${unit.denomination.faceLabel}원 지갑에 돌려놓기", interactionsEnabled) { onToggle(unit.id) })
                 }
             }
             if (ui.inHand.isEmpty()) Text(
@@ -211,7 +239,7 @@ fun WalletOpenContent(
                 }
             }
             groups.forEachIndexed { i, group ->
-                Box(Modifier.rect(pocketBillHitBounds(groups, i)).cashAction("${group.denomination.faceLabel}원 손에 들기", !submitting) {
+                Box(Modifier.rect(pocketBillHitBounds(groups, i)).cashAction("${group.denomination.faceLabel}원 손에 들기", interactionsEnabled) {
                     onToggle(bills.getValue(group.denomination).first().id)
                 })
             }
@@ -221,30 +249,36 @@ fun WalletOpenContent(
                     ?: ScatteredCoin(index, rect.center.x, rect.center.y, rect.width, 0f)
                 key(unit.id) {
                     FallingCoin(unit, coin.copy(x = rect.center.x, y = rect.center.y),
-                        unit !in coins || unit.id == pickedId, !submitting && unit in coins) { onToggle(unit.id) }
+                        unit !in coins || unit.id == pickedId, interactionsEnabled && unit in coins) { onToggle(unit.id) }
                 }
             }
         }
-        IconButton(onClick = onBack, enabled = !submitting && pickedId == null,
+        IconButton(onClick = onBack, enabled = interactionsEnabled && pickedId == null,
             modifier = Modifier.offset(4.dp, 8.dp).semantics { contentDescription = "뒤로" }) { RcIconGlyph(RcIcon.BACK) }
         Text("손에 ${ui.handTotal.formatted()} · 지갑 ${ui.walletTotal.formatted()}", style = MaterialTheme.typography.labelLarge,
             maxLines = 1, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(start = 52.dp, end = 12.dp, top = 24.dp))
         Text(if (submitting) "저장 중" else if (ui.changed) "접시 저장 대기 중" else "접시 자동 저장",
             style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.offset(12.dp, (layout.tray.bottom + 14f).dp))
-        FilledTonalButton(onClick = onCalculate, enabled = pickedId == null,
+        if (ui.inHand.isNotEmpty()) FilledTonalButton(
+            onClick = { if (interactionsEnabled && pickedId == null) returning = true },
+            enabled = interactionsEnabled && pickedId == null,
+            contentPadding = PaddingValues(horizontal = 12.dp),
+            modifier = Modifier.offset((controlsRight - 188f).dp, (layout.tray.bottom + 2f).dp).size(96.dp, 40.dp),
+        ) { Text("모두 넣기", maxLines = 1) }
+        FilledTonalButton(onClick = onCalculate, enabled = pickedId == null && !returning,
             modifier = Modifier.offset((controlsRight - 84f).dp, (layout.tray.bottom + 2f).dp).height(40.dp)) { Text("계산") }
         if (wallet.top > layout.tray.bottom + 100f) Text("길게 눌러 집고 · 밀어서 흔들어 보세요", style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth().offset(y = (layout.tray.bottom + 58f).dp))
         val overflow = coins.filter { it.id !in coinSlots }
         var overflowOpen by remember { mutableStateOf(false) }
-        if (overflow.isNotEmpty()) TextButton(onClick = { overflowOpen = true },
+        if (overflow.isNotEmpty()) TextButton(onClick = { overflowOpen = true }, enabled = interactionsEnabled,
             modifier = Modifier.offset((maxWidth.value - 64f).dp, (maxHeight.value - 44f).dp)
                 .size(52.dp, 44.dp)) { Text("+${overflow.size}") }
         if (overflowOpen) AlertDialog(onDismissRequest = { overflowOpen = false }, title = { Text("남은 동전") }, text = {
             Column { overflow.groupBy { it.denomination }.forEach { (d, units) ->
-                TextButton(onClick = { onToggle(units.first().id) }, enabled = !submitting) { Text("${d.faceLabel}원 ×${units.size} · 손에 들기") }
+                TextButton(onClick = { onToggle(units.first().id) }, enabled = interactionsEnabled) { Text("${d.faceLabel}원 ×${units.size} · 손에 들기") }
             } }
         }, confirmButton = { TextButton(onClick = { overflowOpen = false }) { Text("닫기") } })
         if (picked != null) key(picked.unit.id) { PickGhost(physics, picked) }

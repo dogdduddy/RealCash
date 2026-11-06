@@ -3,6 +3,7 @@ package com.jim.realcash.ui.walletopen
 import com.jim.realcash.data.RealCashData
 import com.jim.realcash.data.db.DriverFactory
 import com.jim.realcash.domain.ledger.MovedToHand
+import com.jim.realcash.domain.ledger.HandReturned
 import com.jim.realcash.domain.model.Denomination.*
 import com.jim.realcash.domain.model.Won
 import com.jim.realcash.domain.model.total
@@ -37,6 +38,84 @@ class WalletOpenModelTest {
         var n = 0
         var failAt = -1
         override fun next(): String { n++; check(n != failAt) { "저장 실패" }; return "open-$n" }
+    }
+
+    @Test
+    fun returnAllDebouncesOneReturnForTwoBillsAndCoin() = runTest {
+        val driver = DriverFactory().createDriver()
+        try {
+            val data = RealCashData(driver, clock, FailingIds(), EmptyCoroutineContext)
+            data.wallet.receiveAllowance(mapOf(W10000 to 1, W5000 to 1, C500 to 1), LocalDate(2026, 11, 1))
+            val ids = data.wallet.state.value.inWallet.map { it.id }.toSet()
+            data.wallet.moveToHand(ids.toList())
+            var successes = 0
+            val haptics = object : Haptics {
+                override fun tap() = Unit
+                override fun pickUp() = Unit
+                override fun success() { successes++ }
+            }
+            val model = WalletOpenModel(backgroundScope, AppEnvironment(data, haptics, clock = clock))
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { model.ui.collect {} }
+            val before = data.wallet.history.value.size
+            model.returnAll()
+            runCurrent()
+            assertTrue(model.ui.value.inHand.isEmpty())
+            assertEquals(ids, model.ui.value.inWallet.map { it.id }.toSet())
+            assertEquals(1, successes)
+            advanceTimeBy(299); runCurrent()
+            assertEquals(before, data.wallet.history.value.size)
+            assertTrue(data.wallet.state.value.activeHand != null)
+            advanceTimeBy(1); runCurrent()
+            assertEquals(null, data.wallet.state.value.activeHand)
+            assertEquals(ids, data.wallet.state.value.inWallet.map { it.id }.toSet())
+            assertEquals(1, data.wallet.history.value.drop(before).size)
+            assertEquals(1, data.wallet.history.value.drop(before).filterIsInstance<HandReturned>().size)
+            assertFalse(model.ui.value.changed)
+            model.returnAll() // Empty trays do not vibrate or write again.
+            advanceTimeBy(300); runCurrent()
+            assertEquals(1, successes)
+            assertEquals(before + 1, data.wallet.history.value.size)
+            assertTrue(data.wallet.state.value.invariantViolations().isEmpty())
+        } finally { driver.close() }
+    }
+
+    @Test
+    fun returnAllDuringWriteQueuesWholeOptimisticTrayBeforeNavigation() = runTest {
+        val driver = DriverFactory().createDriver()
+        try {
+            val writes = PausedWalletWrites(StandardTestDispatcher(testScheduler))
+            val data = RealCashData(driver, clock, FailingIds(), writes)
+            data.wallet.receiveAllowance(mapOf(W10000 to 1, W5000 to 1, C500 to 1), LocalDate(2026, 11, 1))
+            data.settings.load()
+            val ids = data.wallet.state.value.inWallet.map { it.id }
+            data.wallet.moveToHand(ids.take(1))
+            val model = WalletOpenModel(backgroundScope, AppEnvironment(data, Haptics.None, clock = clock))
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { model.ui.collect {} }
+            model.setOnTray(ids[1], true)
+            writes.paused = true
+            var navigations = 0
+            model.confirm {
+                assertEquals(null, data.wallet.state.value.activeHand)
+                navigations++
+            }
+            runCurrent()
+            assertTrue(model.submitting.value)
+            model.setOnTray(ids[2], true) // Also return a queued drop absent from the saved snapshot.
+            model.returnAll()
+            runCurrent()
+            assertTrue(model.ui.value.inHand.isEmpty())
+            advanceTimeBy(500); runCurrent()
+            assertEquals(0, navigations)
+            writes.resume()
+            runCurrent()
+            assertEquals(null, data.wallet.state.value.activeHand)
+            assertEquals(ids.toSet(), data.wallet.state.value.inWallet.map { it.id }.toSet())
+            assertTrue(model.ui.value.inHand.isEmpty())
+            assertFalse(model.submitting.value)
+            assertFalse(model.ui.value.changed)
+            assertEquals(1, navigations)
+            assertTrue(data.wallet.state.value.invariantViolations().isEmpty())
+        } finally { driver.close() }
     }
 
     @Test

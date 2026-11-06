@@ -67,6 +67,15 @@ class WalletOpenModel(private val scope: CoroutineScope, private val env: AppEnv
     fun showPaymentInfo() { _paymentInfoOpen.value = true }
     fun closePaymentInfo() { _paymentInfoOpen.value = false }
 
+    /** Returns the whole optimistic tray through the same debounced/queued path as a drop. */
+    fun returnAll() {
+        val units = present().inHand
+        if (units.isEmpty()) return
+        units.forEach { setOnTray(it.id, false) }
+        trayOrder.clear()
+        env.haptics.success()
+    }
+
     /** A drop changes only presentation; the repository remains the ledger authority. */
     fun setOnTray(id: CashUnitId, onTray: Boolean) {
         val unit = repository.state.value.units[id] ?: return
